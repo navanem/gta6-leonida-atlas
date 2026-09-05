@@ -1,0 +1,61 @@
+name: Map data correction
+description: Propose a sourced correction to a public place or map record.
+title: "[Data]: "
+labels:
+  - data
+body:
+  - type: markdown
+    attributes:
+      value: Corrections must be evidence-led. Unknown placement stays unknown; never infer GTA VI coordinates from a real-world analogue.
+  - type: input
+    id: record
+    attributes:
+      label: Record ID or place name
+      placeholder: L1234 or region:vice-city
+    validations:
+      required: true
+  - type: dropdown
+    id: correction
+    attributes:
+      label: Correction type
+      options:
+        - Name or description
+        - Category or layer
+        - Position
+        - Provenance or attribution
+        - Add a missing public record
+        - Remove or merge a duplicate
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current data
+      description: Quote only the fields that need correction.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed correction
+      description: Provide the exact corrected values. Use position null when placement is unknown.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public evidence and provenance
+      description: Link reviewable sources and explain how each supports the correction.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I did not infer in-game coordinates from a real-world analogue.
+          required: true
+        - label: I have the right to share the linked evidence and proposed data.
+          required: true
+        - label: This report contains no personal markers, user backups or private information.
+          required: true

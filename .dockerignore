@@ -1,5 +1,9 @@
 node_modules
 dist
+.pnpm-store
+.vite
+.cache
+*.tsbuildinfo
 .git
 .env
 .env.*

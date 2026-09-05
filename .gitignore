@@ -1,6 +1,10 @@
 node_modules/
 dist/
 .astro/
+.pnpm-store/
+.vite/
+.cache/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example

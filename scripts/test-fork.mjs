@@ -44,9 +44,20 @@ const env = {
   PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ?? '',
   E2E_BASE_URL: 'http://127.0.0.1:4331',
 };
+function spawnPnpm(args, options) {
+  if (process.platform !== 'win32') return spawn('pnpm', args, options);
+
+  if (!process.env.ComSpec)
+    throw new Error('Windows command processor is unavailable.');
+  return spawn(
+    process.env.ComSpec,
+    ['/d', '/s', '/c', `pnpm ${args.join(' ')}`],
+    options,
+  );
+}
 function run(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn('pnpm', args, { cwd: target, env, stdio: 'inherit' });
+    const child = spawnPnpm(args, { cwd: target, env, stdio: 'inherit' });
     child.on('error', reject);
     child.on('exit', (code) =>
       code === 0 ? resolve() : reject(Error(`${args.join(' ')} exited ${code}`)),
@@ -63,8 +74,15 @@ const builtAnalytics = await readFile(join(target, 'dist/analytics-bootstrap.js'
 if (!builtAnalytics.includes('var id=""'))
   throw new Error('A public fork must have analytics disabled.');
 const preview = spawn(
-  'pnpm',
-  ['exec', 'vite', 'preview', '--host', '127.0.0.1', '--port', '4331'],
+  process.execPath,
+  [
+    join(target, 'node_modules', 'vite', 'bin', 'vite.js'),
+    'preview',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    '4331',
+  ],
   { cwd: target, env, stdio: 'inherit' },
 );
 try {

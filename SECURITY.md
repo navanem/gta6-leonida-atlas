@@ -4,10 +4,10 @@
 
 GTA6 Leonida Atlas is currently pre-1.0. Security fixes are applied to the latest public release line only.
 
-| Version | Supported |
-| --- | --- |
-| `v0.5.x` | Yes |
-| `< v0.5.0` | No |
+| Version    | Supported |
+| ---------- | --------- |
+| `v0.6.x`   | Yes       |
+| `< v0.6.0` | No        |
 
 ## Reporting a vulnerability
 

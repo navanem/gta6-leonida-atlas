@@ -127,6 +127,12 @@ Run the Atlas on its own static hosting target. Keep the parent website deployme
 
 An existing Traefik proxy can route a dedicated path to this container using [the production deployment guide](deploy/README.md). The instance hostname, route and Analytics identifier stay in ignored configuration. The release workflow validates a pushed version tag and publishes its version-specific notes. It preserves existing releases and restores missing entries from v0.5.0 onward using their existing Git tags. The newest release remains marked as latest.
 
+## Contributing
+
+Corrections, accessibility improvements, bug fixes and reviewed map data are welcome. Start with the [contribution guide](CONTRIBUTING.md), use the issue templates for reports and data corrections, and open a pull request from a focused branch.
+
+Public place corrections must include a verifiable source and preserve unknown positions as `position: null`; do not infer in-game coordinates from real-world analogues. Please report suspected vulnerabilities privately as described in the [security policy](SECURITY.md).
+
 ## License
 
 Source code: **AGPL-3.0-only** ([LICENSE](LICENSE)). GTADB-derived data: **CC BY 4.0**, attributed separately. Rockstar Games / Take-Two names and media belong to their owners. This project is not affiliated with or endorsed by them.

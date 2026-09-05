@@ -10,6 +10,23 @@ export interface LeonidaAtlasRelease {
 
 export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
   {
+    version: 'v0.3.1',
+    date: '2026-09-05',
+    title: 'Security policy and dependency audit cleanup',
+    summary:
+      'The open-source app package now includes a project-specific security policy and refreshed development dependencies for the first public source drop.',
+    status: 'public',
+    highlights: [
+      'Added a SECURITY.md policy for supported versions, private vulnerability reporting and project scope.',
+      'Updated the direct development dependencies that pulled vulnerable esbuild and @eslint/plugin-kit versions into the lockfile.',
+      'Kept the release as a packaging/security maintenance update; Atlas evidence boundaries, GTADB attribution and APPROXIMATE / UNKNOWN labels are unchanged.',
+    ],
+    verification: [
+      'pnpm audit reports zero vulnerabilities for the app-only repository.',
+      'Lint, typecheck and unit tests are rerun after the dependency refresh.',
+    ],
+  },
+  {
     version: 'v0.3.0',
     date: '2026-09-05',
     title: 'Explore-first app, corrected fullscreen map and analytics',

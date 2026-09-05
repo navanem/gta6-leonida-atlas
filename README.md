@@ -76,7 +76,7 @@ The app can read compatible Payload CMS endpoints through `PAYLOAD_URL` / `PAYLO
 
 See [RELEASES.md](./RELEASES.md).
 
-Current app release: `v0.3.0`.
+Current app release: `v0.3.1`.
 
 ## License
 

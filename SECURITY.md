@@ -1,21 +1,44 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+GTA6 Leonida Atlas is currently pre-1.0. Security fixes are applied to the latest public release line only.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| --- | --- |
+| `v0.3.x` | Yes |
+| `< v0.3.0` | No |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please do not open a public issue for a suspected vulnerability.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Report security concerns privately through GitHub Security Advisories for this repository when available. If that is not available, contact the maintainer through the profile linked from the repository owner account.
+
+Useful reports include:
+
+- affected package, file, route, or build step;
+- reproduction steps;
+- expected impact;
+- whether the issue affects local development only or the deployed atlas;
+- any safe proof of concept that does not expose user data or third-party systems.
+
+## Scope
+
+In scope:
+
+- application source code in this repository;
+- build tooling and dependency chain;
+- public routes under `https://www.gta6state.com/gta6-leonida-atlas`;
+- generated atlas assets bundled with this project.
+
+Out of scope:
+
+- social engineering;
+- denial-of-service tests against the live site;
+- vulnerabilities in unrelated services or repositories;
+- claims based only on unofficial GTA VI interpretation disagreements.
+
+## Licensing note
+
+Security fixes to original project code are published under `AGPL-3.0-only`. Third-party GTADB-derived data remains under `CC BY 4.0`; see `THIRD_PARTY_LICENSES.md`.

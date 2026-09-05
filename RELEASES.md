@@ -1,6 +1,15 @@
 # Releases
 
-These are website/project releases for GTA6 Leonida Atlas. The repository is private during preparation; public GitHub releases can be created from these entries once the repo is opened.
+These are project releases for GTA6 Leonida Atlas. Git tags are maintained for the app-only source package.
+
+## v0.3.1 — 2026-09-05
+
+Security policy and dependency audit cleanup.
+
+- Added `SECURITY.md` with supported versions, private vulnerability reporting guidance and project scope.
+- Updated direct development dependencies that pulled vulnerable `esbuild` and `@eslint/plugin-kit` versions into the lockfile.
+- Verified `pnpm audit --prod=false` reports zero vulnerabilities for the app-only package.
+- Kept Atlas evidence boundaries, GTADB attribution and `APPROXIMATE` / `UNKNOWN` labels unchanged.
 
 ## v0.3.0 — 2026-09-05
 
@@ -31,4 +40,3 @@ Street Leonida visual reconstruction foundation.
 - Replaced boxy old vehicle treatments with more believable road-scale silhouettes and traffic props.
 - Kept 2D map and 3D world aligned on the established GTADB coordinate transform.
 - Preserved unsupported or low-evidence areas as `APPROXIMATE` / `UNKNOWN`.
-

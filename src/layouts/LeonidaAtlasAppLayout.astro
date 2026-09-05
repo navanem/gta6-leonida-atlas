@@ -1,0 +1,33 @@
+---
+import SeoHead from '@components/seo/SeoHead.astro';
+import JsonLd from '@components/seo/JsonLd.astro';
+import GoogleTag from '@components/analytics/GoogleTag.astro';
+import type { PageMeta } from '@lib/seo/meta';
+import { organizationSchema, websiteSchema } from '@lib/seo/schema-org';
+import '@styles/global.css';
+import '@styles/leonida-atlas.css';
+
+interface Props {
+  meta: PageMeta;
+}
+
+const { meta } = Astro.props;
+---
+
+<html lang="en" class="atlas-app-document">
+  <head>
+    <meta charset="utf-8" />
+    <GoogleTag />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <SeoHead {meta} />
+    <JsonLd schema={websiteSchema()} />
+    <JsonLd schema={organizationSchema()} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="atlas-app-document__body">
+    <a class="atlas-skip-link" href="#atlas-app">Skip to explorer</a>
+    <main id="atlas-app" class="atlas-app-page">
+      <slot />
+    </main>
+  </body>
+</html>

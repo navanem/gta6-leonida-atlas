@@ -1,115 +1,101 @@
 # GTA6 Leonida Atlas
 
-An open-source, community-driven interactive atlas for exploring, navigating, and discovering the world of Leonida in GTA VI.
+Evidence-led, approximate community atlas and 3D explorer for GTA VI's Leonida.
 
-## About
+Live project: <https://www.gta6state.com/gta6-leonida-atlas>  
+Live app: <https://www.gta6state.com/gta6-leonida-atlas/app>
 
-**GTA6 Leonida Atlas** is an unofficial fan-made project focused on providing an interactive map and navigation experience for Leonida.
+This repository contains the Atlas app only. It is not the full GTA6State website, CMS, deployment stack or editorial database.
 
-The project aims to make it easy to:
+## What it does
 
-- Explore Leonida
-- Discover points of interest
-- Search for locations and landmarks
-- Browse map categories and filters
-- Plan routes
-- Navigate between locations
-- Contribute new locations and data
-- Improve the map collaboratively
+- Opens into the Explore 3D module.
+- Provides a fullscreen map module from the Map button.
+- Shows the current position on the map.
+- Lets users click/tap the map to travel to that approximate coordinate in the 3D world.
+- Renders a source-derived, generalized Leonida basemap from pinned GTADB / Map GTA community material.
+- Separates supported entries, uncertain entries, unpositioned entries and unknown/low-evidence coverage.
+- Keeps all map/3D movement on one deterministic GTADB-derived coordinate frame.
+- Includes project pages for About, Documentation, Credits, Contributing, Changelog and Licenses.
 
-The project is open source and intended to evolve with the community.
+## Evidence boundaries
 
-## Website
+GTA6 Leonida Atlas is not an official Rockstar map.
 
-Project website: **https://www.gta6state.com**
+Official Rockstar media can support visual identity or existence. GTADB / Map GTA provides community-estimated placement. Areas without mapped source coverage stay labelled `UNKNOWN`; reconstructed or transformed placements stay labelled `APPROXIMATE`.
 
-## Features
+The app must not invent confirmed GTA VI landmarks, roads, buildings or geography.
 
-Planned and ongoing features include:
+## Repository structure
 
-- Interactive Leonida map
-- Smooth zoom and navigation
-- Location search
-- Points of interest
-- Categories and filters
-- Route planning
-- Location details
-- Mobile-friendly interface
-- Community contributions
-- Open map data and tooling
-
-## Data Sources
-
-GTA6 Leonida Atlas uses and adapts data from the open-source **gtadb.org** project.
-
-Original project: **https://github.com/rolux/gtadb.org**
-
-Data originating from gtadb.org is licensed under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)**.
-
-Attribution: **gtadb.org and all contributors**
-
-The original dataset may be transformed, filtered, reorganized, extended, or otherwise adapted for use in GTA6 Leonida Atlas. Data derived from gtadb.org remains subject to its original CC BY 4.0 license and attribution requirements.
-
-See [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) for additional licensing information when available.
-
-## Open Source
-
-The original source code of GTA6 Leonida Atlas is open source.
-
-Contributions are welcome, including:
-
-- Bug fixes
-- New features
-- UI improvements
-- Location and map data improvements
-- Documentation
-- Performance improvements
+```txt
+src/
+  components/          Astro UI and app shell components
+  features/
+    street-leonida/    Map, 3D world, coordinates, evidence, releases
+  layouts/             Standalone Atlas layouts
+  pages/
+    gta6-leonida-atlas/ Project and app routes
+  styles/              Atlas/app CSS
+public/
+  assets/
+    gta6-leonida-atlas/ Generated Atlas basemap and metadata
+    street-leonida/     Local 3D/material/map assets
+scripts/               Dataset/basemap helper scripts
+tests/                 Unit and Playwright coverage for the Atlas module
+docs/                  Design notes and visual evidence notes
+```
 
 ## Development
 
-Clone the repository:
+Requirements:
+
+- Node.js 22+
+- pnpm 10+
 
 ```bash
 git clone https://github.com/navanem/gta6-leonida-atlas.git
 cd gta6-leonida-atlas
+pnpm install
+cp .env.example .env
+pnpm dev
 ```
 
-Install the project dependencies and start the development server according to the stack used by the project.
+Build and checks:
 
-More detailed development instructions can be added as the project evolves.
+```bash
+pnpm run lint
+pnpm run typecheck
+pnpm run test:unit
+pnpm run build
+```
 
-## Contributing
+The app can read compatible Payload CMS endpoints through `PAYLOAD_URL` / `PAYLOAD_PUBLIC_URL`. Without a compatible CMS, it must keep unavailable data explicit instead of fabricating fallback evidence.
 
-Contributions are welcome.
+## Releases
 
-To contribute:
+See [RELEASES.md](./RELEASES.md).
 
-1. Fork the repository.
-2. Create a dedicated branch.
-3. Make your changes.
-4. Test your changes.
-5. Open a pull request with a clear description of what changed.
-
-Please do not submit copyrighted game assets, leaked material, or any content that you do not have permission to redistribute.
-
-## Third-Party Content
-
-Some data used by GTA6 Leonida Atlas originates from third-party open-source projects and may use licenses that differ from the license applied to this project's source code.
-
-Third-party data and content remain subject to their respective licenses.
-
-## Legal Disclaimer
-
-GTA6 Leonida Atlas is an **unofficial fan-made project** and is not affiliated with, endorsed by, sponsored by, or associated with Rockstar Games or Take-Two Interactive.
-
-Grand Theft Auto, GTA, GTA VI, Rockstar Games, and all related trademarks, names, characters, locations, imagery, and other intellectual property belong to their respective owners.
-
-The open-source license of this repository applies only to original code and content created specifically for GTA6 Leonida Atlas. Third-party data remains subject to its respective licenses.
+Current app release: `v0.3.0`.
 
 ## License
 
-The original source code of **GTA6 Leonida Atlas** is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+The original source code of **GTA6 Leonida Atlas** is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
 
-See [`LICENSE`](./LICENSE) for details.
+See [LICENSE](./LICENSE) for details.
 
-Data originating from **gtadb.org** is licensed separately under **CC BY 4.0** and remains subject to its attribution requirements.
+### Third-party data
+
+Some data used by GTA6 Leonida Atlas originates from **gtadb.org** / Map GTA and is licensed separately under the **Creative Commons Attribution 4.0 International License (CC BY 4.0)**.
+
+Attribution: **gtadb.org and contributors**
+
+Data originating from `gtadb.org` remains subject to CC BY 4.0, including attribution requirements.
+
+See [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md) for details.
+
+## Disclaimer
+
+GTA6 Leonida Atlas is an independent fan/community project. It is not affiliated with, endorsed by or sponsored by Rockstar Games or Take-Two Interactive.
+
+Grand Theft Auto, Grand Theft Auto VI, GTA VI, Rockstar Games names, media and related intellectual property belong to their respective owners.

@@ -1,0 +1,39 @@
+---
+import ProjectArticle from '@components/gta6-leonida-atlas/ProjectArticle.astro';
+import { urls } from '@lib/urls';
+---
+
+<ProjectArticle
+  path={urls.leonidaAtlasLicenses()}
+  title="Licenses"
+  section="Rights & reuse"
+  description="What can be attributed and reused today, what remains third-party material and what has not yet been licensed for public reuse."
+>
+  <section>
+    <h2>GTADB-derived cartography</h2>
+    <p>
+      The atlas's generalized land, water, vegetation, road and building layers are derivative of
+      the pinned GTADB Yanis v16 map source and are attributed under
+      <a href="https://creativecommons.org/licenses/by/4.0/" rel="license noopener noreferrer"
+        >CC BY 4.0</a
+      >. Attribution and a link to the pinned source are preserved on the
+      <a href={urls.leonidaAtlasCredits()}>Credits & sources page</a>.
+    </p>
+  </section>
+  <section>
+    <h2>Rockstar and other third-party material</h2>
+    <p>
+      Rockstar Games material is used as a reference and remains the property of its respective
+      rights holders. A source citation does not grant a reuse license. Other third-party material
+      retains the license stated by its owner.
+    </p>
+  </section>
+  <section>
+    <h2>Project code</h2>
+    <p>
+      No public code license has been released for GTA6 Leonida Atlas. The source release and its
+      license are in preparation, so the project code must not currently be represented as MIT, open
+      source or otherwise licensed for redistribution.
+    </p>
+  </section>
+</ProjectArticle>

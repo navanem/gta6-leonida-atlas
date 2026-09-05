@@ -1,0 +1,42 @@
+---
+import ProjectArticle from '@components/gta6-leonida-atlas/ProjectArticle.astro';
+import { urls } from '@lib/urls';
+---
+
+<ProjectArticle
+  path={urls.leonidaAtlasContributing()}
+  title="Contributing"
+  section="Participation"
+  description="The contribution process is being prepared alongside the public source release. These are the standards it will follow."
+>
+  <aside class="atlas-note">
+    <strong>Not open for code contributions yet.</strong>
+    <p>No public repository or contribution intake has been published for this project.</p>
+  </aside>
+  <section>
+    <h2>Evidence contributions</h2>
+    <p>
+      A useful location correction needs the proposed place or viewpoint, a public source URL, what
+      the source visibly establishes and a confidence level that does not overstate the evidence.
+      Claims based only on proximity, memory or repeated community lore are not enough.
+    </p>
+  </section>
+  <section>
+    <h2>Data standards</h2>
+    <ul>
+      <li>Use stable, public source links and identify the publisher.</li>
+      <li>Separate an official appearance reference from a community-estimated placement.</li>
+      <li>Mark missing coordinates as unknown; do not substitute zero.</li>
+      <li>Do not infer roads, boundaries or names from nearby landmarks.</li>
+      <li>Include attribution and rights information for contributed material.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>What comes next</h2>
+    <p>
+      When a public contribution channel, repository and code license are ready, this page will be
+      updated with the verified locations and review workflow. Until then, it intentionally does not
+      direct contributors to an unpublished repository.
+    </p>
+  </section>
+</ProjectArticle>

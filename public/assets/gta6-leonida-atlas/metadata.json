@@ -1,0 +1,50 @@
+{
+  "title": "Leonida Atlas source-derived basemap",
+  "source": "Yanis v16 GTA VI Community Map via GTADB",
+  "sourceRevision": "7c3f8c295d64254e6b6d269b77c6f84fc4339f9c",
+  "sourceUrl": "https://github.com/rolux/gtadb.org/tree/7c3f8c295d64254e6b6d269b77c6f84fc4339f9c/maps",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "confidence": "APPROXIMATE",
+  "official": false,
+  "derivative": "GTA6 Leonida Atlas palette and raster surface interpretation; source artwork is recolored, generalized and cropped. Source annotation colors are suppressed locally; source label remnants may persist where indistinguishable from road detail.",
+  "method": "Classify full-resolution JPEG pixels by source legend colors; map water, vegetation/relief, sand, urban ground, buildings, road and pavement to a muted atlas palette. Suppress colored annotations with bounded adjacent surface samples. Downsample each tile 2:1 with Lanczos. Assemble by exact canonical world registration. Replace source water texture with uniform blue and a source-land-mask Gaussian proximity halo (sigma 28 raster pixels / 112 world units), a decorative coastline emphasis, NOT depth or bathymetry. No fabricated land or road geometry. No elevation.bin used.",
+  "transform": "world x = GTADB x * 2; SVG y = world z = -GTADB y * 2",
+  "bounds": {
+    "minX": -32000,
+    "minY": -24000,
+    "width": 40000,
+    "height": 40000
+  },
+  "geographicCoverage": {
+    "minX": -22000,
+    "minY": -22016,
+    "maxX": 8000,
+    "maxY": 16000
+  },
+  "excludedSource": "Western legend/screenshots column, global source x < 5384; rows above zoom-5 row 21 have no tiles. These areas are UNKNOWN, not sea.",
+  "resolution": {
+    "width": 10000,
+    "height": 10000,
+    "approximateWorldUnitsPerPixel": 4
+  },
+  "defaultSvgResolution": {
+    "width": 4096,
+    "height": 4096,
+    "approximateDecodedRgbaMiB": 64
+  },
+  "projectPreviewBounds": {
+    "minX": -22000,
+    "minY": -22016,
+    "width": 30000,
+    "height": 38016
+  },
+  "files": {
+    "svg": "basemap.svg",
+    "optionalFullDetailRaster": "basemap.webp",
+    "preview": "preview.webp",
+    "projectPreview": "project-preview.webp"
+  },
+  "tilesProcessed": 4425,
+  "sourceBytesSha256": "4e2626b977e6d91a585c8c3fb9f8e7d0110a79e5c0aa13757919c7bd2ffd64bb"
+}

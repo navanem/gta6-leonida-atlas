@@ -1,0 +1,256 @@
+---
+import type { PublicStreetViewpoint } from '@features/street-leonida/types';
+import { resolveStreetNavigation } from '@features/street-leonida/links';
+
+interface Props {
+  viewpoint: PublicStreetViewpoint | null;
+}
+
+const { viewpoint } = Astro.props;
+const navigation = viewpoint
+  ? resolveStreetNavigation(viewpoint.slug, viewpoint.links)
+  : { previousMoment: null, nextMoment: null, previousScene: null, nextScene: null };
+const hasImage = Boolean(viewpoint?.media.image);
+const hasVideo = Boolean(viewpoint?.media.video?.src);
+const isVideoExcerpt = Boolean(viewpoint?.media.video);
+const hasCaptions = Boolean(viewpoint?.media.video?.captionsUrl);
+const transcript = viewpoint?.media.video?.transcript ?? viewpoint?.visualDescription ?? null;
+---
+
+<div class="street-controls" aria-label="Explorer controls">
+  <div class="street-controls__mode">
+    <button type="button" class="street-control street-control--primary" data-enter-explorer>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path
+          d="M8 5h11v14H8M13 9l4 3-4 3M4 12h12"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"></path>
+      </svg>
+      <span>Enter street</span>
+    </button>
+    <button type="button" class="street-control" data-exit-explorer hidden>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path
+          d="M16 5H5v14h11M11 9l-4 3 4 3M20 12H8"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"></path>
+      </svg>
+      <span>Exit explorer</span>
+    </button>
+  </div>
+
+  <button
+    type="button"
+    class="street-control"
+    data-previous-scene
+    data-target-slug={navigation.previousScene?.fromSlug}
+    data-link-type={navigation.previousScene?.type}
+    disabled={!navigation.previousScene}
+    aria-describedby="street-previous-scene-reason"
+    aria-label={navigation.previousScene
+      ? 'Previous scene'
+      : 'Previous scene. No previous documented scene'}
+    title={navigation.previousScene
+      ? 'Open the previous documented scene'
+      : 'No previous documented scene'}
+  >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+      <path
+        d="M6 5v14M18 6l-8 6 8 6V6Z"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linejoin="round"></path>
+    </svg>
+    <span>Previous scene</span>
+  </button>
+  <span class="sr-only" id="street-previous-scene-reason" data-previous-scene-reason>
+    {
+      navigation.previousScene
+        ? 'Opens the previous documented scene.'
+        : 'No previous documented scene.'
+    }
+  </span>
+
+  <button
+    type="button"
+    class="street-control street-control--primary"
+    data-next-scene
+    data-target-slug={navigation.nextScene?.toSlug}
+    data-link-type={navigation.nextScene?.type}
+    disabled={!navigation.nextScene}
+    aria-describedby="street-next-scene-reason"
+    aria-label={navigation.nextScene ? 'Jump to scene' : 'Jump to scene. Coverage ends here'}
+    title={navigation.nextScene ? 'Jump to another documented scene' : 'Coverage ends here'}
+  >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+      <path d="m9 5 8 7-8 7V5Z" fill="currentColor"></path>
+    </svg>
+    <span>Jump to scene</span>
+  </button>
+  <span class="sr-only" id="street-next-scene-reason" data-next-scene-reason>
+    {navigation.nextScene ? 'Jumps to another documented scene.' : 'Coverage ends here.'}
+  </span>
+
+  <button
+    type="button"
+    class="street-control"
+    data-previous-moment
+    data-target-slug={navigation.previousMoment?.fromSlug}
+    data-link-type={navigation.previousMoment?.type}
+    disabled={!navigation.previousMoment}
+    hidden={!isVideoExcerpt}
+    aria-describedby="street-previous-moment-reason"
+    aria-label={navigation.previousMoment
+      ? 'Previous moment'
+      : 'Previous moment. No previous reviewed moment'}
+  >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+      <path d="m15 6-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+    </svg>
+    <span>Previous moment</span>
+  </button>
+  <span class="sr-only" id="street-previous-moment-reason" data-previous-moment-reason>
+    {
+      navigation.previousMoment
+        ? 'Opens the previous reviewed moment.'
+        : 'No previous reviewed moment.'
+    }
+  </span>
+
+  <button
+    type="button"
+    class="street-control"
+    data-next-moment
+    data-target-slug={navigation.nextMoment?.toSlug}
+    data-link-type={navigation.nextMoment?.type}
+    disabled={!navigation.nextMoment}
+    hidden={!isVideoExcerpt}
+    aria-describedby="street-next-moment-reason"
+    aria-label={navigation.nextMoment ? 'Next moment' : 'Next moment. Coverage ends here'}
+  >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+      <path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+    </svg>
+    <span>Next moment</span>
+  </button>
+  <span class="sr-only" id="street-next-moment-reason" data-next-moment-reason>
+    {navigation.nextMoment ? 'Opens the next reviewed moment.' : 'Coverage ends here.'}
+  </span>
+
+  <button
+    type="button"
+    class="street-control street-control--primary"
+    data-play-media
+    hidden={!hasVideo}
+  >
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+      <path data-play-icon d="m8 5 11 7-11 7V5Z" fill="currentColor"></path>
+      <path data-pause-icon d="M8 6h3v12H8zM14 6h3v12h-3z" fill="currentColor" style="display: none"
+      ></path>
+    </svg>
+    <span data-play-label>Play excerpt</span>
+  </button>
+
+  <button
+    type="button"
+    class="street-control"
+    data-mute-media
+    aria-pressed="false"
+    hidden={!hasVideo}
+  >
+    <span data-mute-label>Mute audio</span>
+  </button>
+
+  <button
+    type="button"
+    class="street-control"
+    data-toggle-captions
+    aria-pressed="false"
+    hidden={!hasCaptions}
+  >
+    <span data-captions-label>Show captions</span>
+  </button>
+
+  <div class="street-pan-controls" data-pan-controls hidden={!hasImage}>
+    <span class="street-pan-controls__label">Pan image: fixed source frame</span>
+    <div class="street-pan-controls__buttons">
+      <button type="button" data-pan-direction="left" aria-label="Pan image left">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none"
+          ><path
+            d="m14 6-6 6 6 6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >
+      </button>
+      <button type="button" data-pan-direction="up" aria-label="Pan image up">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none"
+          ><path
+            d="m6 14 6-6 6 6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >
+      </button>
+      <button type="button" data-pan-direction="down" aria-label="Pan image down">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none"
+          ><path
+            d="m6 10 6 6 6-6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >
+      </button>
+      <button type="button" data-pan-direction="right" aria-label="Pan image right">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none"
+          ><path
+            d="m10 6 6 6-6 6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></path></svg
+        >
+      </button>
+    </div>
+  </div>
+
+  <details class="street-transcript" data-video-transcript hidden={!isVideoExcerpt}>
+    <summary>Transcript or visual description</summary>
+    <p data-video-transcript-text>
+      {
+        transcript ??
+          'No transcript is supplied; the documented scene description remains available.'
+      }
+    </p>
+  </details>
+
+  <div class="street-controls__utilities">
+    <button type="button" class="street-control" data-open-details>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path
+          d="M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h6M9 13h6M9 17h4"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"></path>
+      </svg>
+      <span>Open place details</span>
+    </button>
+    <button type="button" class="street-control" data-copy-link>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path
+          d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"></path>
+      </svg>
+      <span>Copy link</span>
+    </button>
+  </div>
+</div>

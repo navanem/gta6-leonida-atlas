@@ -1,0 +1,60 @@
+{
+  "name": "gta6-leonida-atlas",
+  "version": "0.3.0",
+  "private": false,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "Evidence-led, approximate community atlas and 3D explorer for GTA VI's Leonida.",
+  "homepage": "https://www.gta6state.com/gta6-leonida-atlas",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/navanem/gta6-leonida-atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/navanem/gta6-leonida-atlas/issues"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "start": "node ./dist/server/entry.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && astro check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "build:basemap": "node scripts/build-leonida-atlas-basemap.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "11.1.4",
+    "@fontsource/inter": "5.2.5",
+    "@fontsource/oswald": "5.2.5",
+    "astro": "7.2.9",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.4",
+    "@eslint/js": "9.16.0",
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "22.19.9",
+    "@types/three": "0.185.0",
+    "eslint": "9.16.0",
+    "eslint-plugin-astro": "1.3.1",
+    "prettier": "3.9.6",
+    "prettier-plugin-astro": "0.14.1",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.19.0",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  }
+}
+

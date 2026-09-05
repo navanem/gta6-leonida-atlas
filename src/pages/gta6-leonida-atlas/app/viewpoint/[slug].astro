@@ -1,0 +1,36 @@
+---
+import ExplorerShell from '@components/tools/street-leonida/ExplorerShell.astro';
+import { loadAtlasPageData } from '@features/street-leonida/page-data';
+import LeonidaAtlasAppLayout from '@layouts/LeonidaAtlasAppLayout.astro';
+import { buildPageMeta } from '@lib/seo/meta';
+import { urls } from '@lib/urls';
+
+export const prerender = false;
+
+const slug = Astro.params.slug as string;
+const data = await loadAtlasPageData({ kind: 'viewpoint', slug });
+if (!data.dataUnavailable && !data.focusFound) return Astro.redirect('/404');
+const title = data.initialViewpoint?.title ?? 'Leonida viewpoint';
+const meta = buildPageMeta({
+  path: urls.leonidaAtlasViewpoint(slug),
+  fallbackTitle: `${title} — GTA6 Leonida Atlas`,
+  fallbackDescription:
+    data.initialViewpoint?.visualDescription ??
+    `Inspect the source evidence and approximate placement for ${title}.`,
+  fallbackImage:
+    data.initialViewpoint?.media.image?.src ??
+    data.initialViewpoint?.media.video?.poster?.src ??
+    null,
+});
+---
+
+<LeonidaAtlasAppLayout {meta}>
+  <ExplorerShell
+    places={data.places}
+    viewpoints={data.viewpoints}
+    initialPlace={data.initialPlace}
+    initialViewpoint={data.initialViewpoint}
+    dataUnavailable={data.dataUnavailable}
+    standalone
+  />
+</LeonidaAtlasAppLayout>

@@ -1,0 +1,146 @@
+---
+import LeonidaAtlasProjectLayout from '@layouts/LeonidaAtlasProjectLayout.astro';
+import { LEONIDA_ATLAS_RELEASES, latestLeonidaAtlasRelease } from '@features/street-leonida/releases';
+import { buildPageMeta } from '@lib/seo/meta';
+import { urls } from '@lib/urls';
+
+const meta = buildPageMeta({
+  path: urls.leonidaAtlas(),
+  fallbackTitle: 'GTA6 Leonida Atlas: A World Taking Shape',
+  fallbackDescription:
+    'An evidence-led, approximate community atlas of Leonida built from cited sources and a shared coordinate frame.',
+  fallbackImage: '/assets/gta6-leonida-atlas/project-preview.webp',
+});
+const principles = [
+  ['Evidence first', 'Every mapped claim leads back to a source or an explicit unknown.'],
+  ['Verifiable process', 'Methods, caveats and source decisions are documented for scrutiny.'],
+  [
+    'Approximate by design',
+    'Community placements remain estimates until stronger evidence appears.',
+  ],
+  ['Shared reference', 'One coordinate frame keeps the map, evidence and 3D world aligned.'],
+  ['Respect & fair use', 'Rockstar material is referenced, not claimed or republished as ours.'],
+];
+---
+
+<LeonidaAtlasProjectLayout {meta}>
+  <section class="atlas-hero atlas-project-container">
+    <div class="atlas-hero__copy">
+      <p class="atlas-section-label">Community cartography</p>
+      <h1>A world<br />taking shape.</h1>
+      <p class="atlas-hero__lede">Explore Leonida through the evidence.</p>
+      <p>
+        GTA6 Leonida Atlas is an independent mapping project that organizes verifiable community
+        evidence into a readable, explorable reconstruction. Geography is approximate, uncertainty
+        stays visible and every supported claim is cited.
+      </p>
+      <div class="atlas-hero__actions">
+        <a class="atlas-button" href={urls.leonidaAtlasApp()}
+          >Open the atlas <span aria-hidden="true">↗</span></a
+        >
+        <a class="atlas-text-link" href={urls.leonidaAtlasDocumentation()}
+          >Learn how it works <span aria-hidden="true">→</span></a
+        >
+      </div>
+    </div>
+    <figure class="atlas-preview">
+      <img
+        src="/assets/gta6-leonida-atlas/project-preview.webp"
+        alt="Source-derived overview of the GTA6 Leonida Atlas"
+        width="1120"
+        height="820"
+      />
+      <figcaption>
+        Community reconstruction from cited source material. Geography and placements are
+        approximate.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="atlas-stat-strip" aria-label="Atlas scope">
+    <div class="atlas-project-container">
+      <p><strong>6</strong><span>regions</span></p>
+      <p><strong>2,198</strong><span>catalogued source entries</span></p>
+      <p><strong>One</strong><span>shared coordinate frame</span></p>
+    </div>
+  </section>
+
+  <section class="atlas-principles" aria-labelledby="principles-title">
+    <div class="atlas-project-container">
+      <h2 id="principles-title" class="atlas-visually-hidden">Project principles</h2>
+      {
+        principles.map(([title, description], index) => (
+          <article>
+            <span aria-hidden="true">0{index + 1}</span>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="atlas-method atlas-project-container" aria-labelledby="method-title">
+    <header>
+      <p class="atlas-section-label">Method</p>
+      <h2 id="method-title">Evidence becomes geography carefully.</h2>
+    </header>
+    <div class="atlas-method__steps">
+      <article>
+        <strong>01</strong>
+        <h3>Collect</h3>
+        <p>Gather public source material and preserve its publisher, URL and evidence context.</p>
+        <a href={urls.leonidaAtlasCredits()}>See sources <span aria-hidden="true">→</span></a>
+      </article>
+      <article>
+        <strong>02</strong>
+        <h3>Compare & label</h3>
+        <p>Separate official appearance references from community-estimated names and positions.</p>
+        <a href={urls.leonidaAtlasDocumentation()}
+          >Read documentation <span aria-hidden="true">→</span></a
+        >
+      </article>
+      <article>
+        <strong>03</strong>
+        <h3>Map & iterate</h3>
+        <p>
+          Place supported features in a shared frame and revise them as better evidence appears.
+        </p>
+        <a href={urls.leonidaAtlasChangelog()}>View changelog <span aria-hidden="true">→</span></a>
+      </article>
+    </div>
+  </section>
+
+  <section class="atlas-home-releases atlas-project-container" aria-labelledby="latest-releases-title">
+    <header>
+      <p class="atlas-section-label">Release record</p>
+      <h2 id="latest-releases-title">Latest public releases</h2>
+      <p>
+        Current site build: <strong>{latestLeonidaAtlasRelease.version}</strong>. These entries
+        document shipped Atlas changes; the public source repository is still in preparation.
+      </p>
+    </header>
+    <div class="atlas-home-releases__grid">
+      {
+        LEONIDA_ATLAS_RELEASES.slice(0, 3).map((release) => (
+          <article>
+            <span>{release.version}</span>
+            <h3>{release.title}</h3>
+            <p>{release.summary}</p>
+            <time datetime={release.date}>
+              {new Date(`${release.date}T00:00:00Z`).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                timeZone: 'UTC',
+              })}
+            </time>
+          </article>
+        ))
+      }
+    </div>
+    <a class="atlas-text-link" href={urls.leonidaAtlasChangelog()}
+      >Open full changelog <span aria-hidden="true">→</span></a
+    >
+  </section>
+</LeonidaAtlasProjectLayout>

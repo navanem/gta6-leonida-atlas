@@ -1,0 +1,39 @@
+---
+import ProjectArticle from '@components/gta6-leonida-atlas/ProjectArticle.astro';
+import { urls } from '@lib/urls';
+---
+
+<ProjectArticle
+  path={urls.leonidaAtlasAbout()}
+  title="About the atlas"
+  section="Project"
+  description="An independent attempt to make a changing body of GTA 6 location evidence legible, explorable and honest about its limits."
+>
+  <section>
+    <h2>Why this exists</h2>
+    <p>
+      Public trailers, screenshots, official pages and community research reveal fragments of
+      Leonida rather than a finished map. The atlas gives those fragments a shared frame so readers
+      can inspect relationships without mistaking an estimate for confirmed geography.
+    </p>
+    <p>
+      The project is editorial and evidentiary. It is not an official map, a leaked game asset or a
+      promise that every road and landmark will appear in the released game.
+    </p>
+  </section>
+  <section>
+    <h2>What “approximate” means</h2>
+    <p>
+      Community-derived coastlines, routes and positions can change when better evidence arrives.
+      The experience keeps uncertainty visible and leaves unsupported areas unknown rather than
+      completing them by guesswork.
+    </p>
+  </section>
+  <section>
+    <h2>Project status</h2>
+    <p>
+      The atlas is under active development. A public source release, contribution workflow and code
+      license are in preparation; none has been published yet.
+    </p>
+  </section>
+</ProjectArticle>

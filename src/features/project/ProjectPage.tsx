@@ -9,6 +9,7 @@ import {
 } from '../street-leonida/gtadb';
 import { projectPath, publicPath } from '../explorer/public-path';
 import { LEONIDA_ATLAS_RELEASES } from '../street-leonida/releases';
+import { AnalyticsPreferences } from '../../app/AnalyticsConsent';
 import './project.css';
 
 export interface ProjectPageProps {
@@ -25,9 +26,9 @@ const pages = [
   ['licenses', 'Licenses'],
 ] as const;
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, id }: { title: string; children: ReactNode; id?: string }) {
   return (
-    <section className="project-section">
+    <section className="project-section" id={id} tabIndex={id ? -1 : undefined}>
       <h2>{title}</h2>
       {children}
     </section>
@@ -40,6 +41,9 @@ function About() {
       <p className="project-lead">
         An independent atlas that makes GTA VI location evidence legible, explorable and honest
         about its limits.
+      </p>
+      <p className="project-release-version">
+        Current release: <a href="#release-history">{LEONIDA_ATLAS_RELEASES[0]!.version}</a>
       </p>
       <Section title="Why this exists">
         <p>
@@ -70,12 +74,36 @@ function About() {
           estimate into a confirmed location.
         </p>
       </Section>
+      <AnalyticsPreferences />
       <Section title="Independent by design">
         <p>
           The public application builds as static files and runs without a CMS, private server or
           account. Its source code is licensed under AGPL-3.0-only. The optional 3D explorer uses
           the same community coordinate frame.
         </p>
+      </Section>
+      <Section title="Release history" id="release-history">
+        <p>Every release since v0.5.0, from newest to oldest.</p>
+        <ol className="project-release-history">
+          {LEONIDA_ATLAS_RELEASES.map((release, index) => (
+            <li key={release.version} className="project-release-card">
+              <div className="project-release-meta">
+                <a
+                  href={`https://github.com/navanem/gta6-leonida-atlas/releases/tag/${release.version}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {release.version}
+                </a>
+                {index === 0 && <span className="project-release-current">Current</span>}
+                <time dateTime={release.date}>{release.date}</time>
+              </div>
+              <h3>{release.title}</h3>
+              <p>{release.summary}</p>
+            </li>
+          ))}
+        </ol>
+        <a href={projectPath('changelog')}>Full changelog</a>
       </Section>
     </>
   );
@@ -301,7 +329,7 @@ function Contributing() {
 function Changelog() {
   return (
     <>
-      <p className="project-lead">The current release of the standalone Leonida Atlas.</p>
+      <p className="project-lead">Leonida Atlas release history, starting with v0.5.0.</p>
       {LEONIDA_ATLAS_RELEASES.map((release) => (
         <Section key={release.version} title={release.title}>
           <p className="project-release-version">
@@ -404,7 +432,14 @@ export default function ProjectPage({ page, onClose }: ProjectPageProps) {
   const title = pages.find(([key]) => key === selected)![1];
   useEffect(() => {
     const previousFocus = document.activeElement;
-    closeRef.current?.focus();
+    const fragment = window.location.hash.slice(1);
+    const destination = ['analytics-preferences', 'release-history'].includes(fragment)
+      ? document.getElementById(fragment)
+      : null;
+    if (destination) {
+      destination.scrollIntoView({ block: 'start' });
+      destination.focus({ preventScroll: true });
+    } else closeRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
     };

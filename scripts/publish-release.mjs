@@ -58,22 +58,78 @@ function published(item) {
   );
 }
 
-/** Uses only release endpoints: Git references and repository history are never modified. */
+const STABLE_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const FIRST_RETAINED_VERSION = version('v0.5.0');
+
+/** Each level-two version section becomes its own GitHub release body. */
+export function parseReleaseNotes(input) {
+  if (typeof input !== 'string' || !input.trim()) throw new Error('Release notes are required.');
+  const lines = input.replace(/\r\n?/g, '\n').split('\n');
+  const sections = [];
+  const seen = new Set();
+  let section = null;
+  let fence = null;
+  function finish() {
+    if (!section) return;
+    if (!section.lines.slice(1).join('\n').trim())
+      throw new Error(`Release notes for ${section.tag} must not be empty.`);
+    sections.push({ tag: section.tag, body: section.lines.join('\n').trim() });
+    section = null;
+  }
+  for (const line of lines) {
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      section?.lines.push(line);
+      if (
+        marker &&
+        marker[1][0] === fence[0] &&
+        marker[1].length >= fence.length &&
+        !marker[2].trim()
+      )
+        fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      section?.lines.push(line);
+      continue;
+    }
+    if (/^##\s+/.test(line)) {
+      finish();
+      const heading = /^##[ \t]+(v[^\s]+)(?:[ \t]+.*)?$/.exec(line);
+      if (!heading) continue;
+      const tag = heading[1];
+      if (!STABLE_TAG.test(tag)) throw new Error(`Invalid stable release heading: ${tag}.`);
+      if (seen.has(tag)) throw new Error(`Duplicate release notes for ${tag}.`);
+      seen.add(tag);
+      if (compare(version(tag), FIRST_RETAINED_VERSION) >= 0) section = { tag, lines: [line] };
+      continue;
+    }
+    section?.lines.push(line);
+  }
+  if (fence) throw new Error('Release notes contain an unclosed code fence.');
+  finish();
+  if (!sections.length) throw new Error('No release notes at or after v0.5.0 were found.');
+  return sections.sort((left, right) => compare(version(right.tag), version(left.tag)));
+}
+
+/** Retains all releases and only creates releases for existing Git tags. */
 export async function publishRelease({
   repository,
   tag,
-  body,
+  releaseNotes,
   token,
   fetchImpl = globalThis.fetch,
 }) {
-  const targetVersion = typeof tag === 'string' ? version(tag) : null;
+  const targetVersion = typeof tag === 'string' && STABLE_TAG.test(tag) ? version(tag) : null;
   if (repository !== RELEASE_REPOSITORY)
     throw new Error('Release publication is restricted to the Atlas repository.');
-  if (!targetVersion || !tag.startsWith('v') || targetVersion.prerelease.length)
-    throw new Error('A stable vMAJOR.MINOR.PATCH release tag is required.');
+  if (!targetVersion || compare(targetVersion, FIRST_RETAINED_VERSION) < 0)
+    throw new Error('A stable vMAJOR.MINOR.PATCH release tag at or after v0.5.0 is required.');
   if (typeof token !== 'string' || !token) throw new Error('GITHUB_TOKEN is required.');
-  if (typeof body !== 'string' || !body.trim())
-    throw new Error('The release body must not be empty.');
+  const sections = parseReleaseNotes(releaseNotes);
+  if (sections[0].tag !== tag)
+    throw new Error('The current tag must match the newest section in RELEASES.md.');
 
   const root = `/repos/${repository}`;
   async function request(method, path, data, allow404 = false) {
@@ -96,7 +152,6 @@ export async function publishRelease({
     }
     if (allow404 && response.status === 404) return null;
     if (!response.ok) throw new Error(`GitHub API ${method} ${path} failed (${response.status}).`);
-    if (response.status === 204) return null;
     try {
       return await response.json();
     } catch {
@@ -108,76 +163,110 @@ export async function publishRelease({
     for (let page = 1; page <= 100; page++) {
       const items = await request('GET', `/releases?per_page=100&page=${page}`);
       if (!Array.isArray(items) || items.some((item) => !validRelease(item)))
-        throw new Error('GitHub returned an invalid release listing; pruning is disabled.');
+        throw new Error('GitHub returned an invalid release listing; publication stopped.');
       releases.push(...items);
-      if (items.length < 100) return releases;
+      if (items.length < 100) {
+        if (
+          new Set(releases.map((item) => item.id)).size !== releases.length ||
+          new Set(releases.map((item) => item.tag_name)).size !== releases.length
+        )
+          throw new Error('GitHub returned an ambiguous release listing; publication stopped.');
+        return releases;
+      }
     }
-    throw new Error('Release pagination exceeded its safety limit; pruning is disabled.');
+    throw new Error('Release pagination exceeded its safety limit; publication stopped.');
   }
+  function requirePublished(item, requestedTag, id) {
+    if (
+      !published(item) ||
+      item.tag_name !== requestedTag ||
+      item.prerelease ||
+      (id !== undefined && item.id !== id)
+    )
+      throw new Error(
+        `Release ${requestedTag} is not the expected published stable release; drafts are never overwritten.`,
+      );
+    return item;
+  }
+  async function verifyTag(requestedTag) {
+    const reference = await request('GET', `/git/ref/tags/${encodeURIComponent(requestedTag)}`);
+    if (
+      reference?.ref !== `refs/tags/${requestedTag}` ||
+      !/^[a-f0-9]{40,64}$/i.test(reference?.object?.sha ?? '') ||
+      !['commit', 'tag'].includes(reference?.object?.type)
+    )
+      throw new Error(`The existing release tag ${requestedTag} could not be verified.`);
+  }
+  const readRelease = (requestedTag, allow404 = false) =>
+    request('GET', `/releases/tags/${encodeURIComponent(requestedTag)}`, undefined, allow404);
   const hasNewer = (releases) =>
     releases.some((item) => {
       const candidate = version(item.tag_name);
-      return published(item) && candidate && compare(candidate, targetVersion) > 0;
+      return (
+        published(item) && !item.prerelease && candidate && compare(candidate, targetVersion) > 0
+      );
     });
-  const isOlder = (item) => {
-    const candidate = version(item.tag_name);
-    return published(item) && candidate && compare(candidate, targetVersion) < 0;
-  };
-  async function verifyRelease(id) {
-    const item = await request('GET', `/releases/tags/${encodeURIComponent(tag)}`);
-    if (!published(item) || item.tag_name !== tag || item.id !== id || item.prerelease)
-      throw new Error('The new published release could not be verified; pruning is disabled.');
-    return item;
+
+  const initial = await listReleases();
+  // Validate the complete plan before writing, including missing historical refs.
+  for (const section of sections) {
+    const existing = initial.find((item) => item.tag_name === section.tag);
+    if (existing) requirePublished(existing, section.tag);
+    if (!existing || section.tag === tag) await verifyTag(section.tag);
   }
 
-  // Ref lookup prevents the release API from silently creating a missing Git tag.
-  const reference = await request('GET', `/git/ref/tags/${encodeURIComponent(tag)}`);
-  if (reference?.ref !== `refs/tags/${tag}`) throw new Error('The release tag does not exist.');
-  const initial = await listReleases();
-  if (hasNewer(initial)) return { tag, deleted: [], skipped: 'A newer published version exists.' };
-  const existing = initial.find((item) => item.tag_name === tag);
+  const created = [];
+  const retained = [];
+  for (const section of sections) {
+    // Re-read after preflight to respect a release another publisher just created.
+    const existing = await readRelease(section.tag, true);
+    if (existing) {
+      requirePublished(existing, section.tag);
+      retained.push(section.tag);
+      continue;
+    }
+    await verifyTag(section.tag);
+    const result = await request('POST', '/releases', {
+      tag_name: section.tag,
+      name: `${section.tag} — Leonida Atlas local-first`,
+      body: section.body,
+      draft: false,
+      prerelease: false,
+      make_latest: 'false',
+    });
+    requirePublished(result, section.tag);
+    requirePublished(await readRelease(section.tag), section.tag, result.id);
+    created.push(section.tag);
+  }
+
+  // The repository-wide Actions concurrency group serializes this publisher.
+  // Historical creation never changes latest, including on a partial retry.
+  const current = requirePublished(await readRelease(tag), tag);
+  const latest = await request('GET', '/releases/latest', undefined, true);
+  if (latest !== null && !published(latest))
+    throw new Error('GitHub returned an invalid latest release.');
+  const refreshed = await listReleases();
+  if (hasNewer(latest ? [...refreshed, latest] : refreshed))
+    return {
+      tag,
+      created,
+      retained,
+      latest: false,
+      skipped: 'A newer published version exists; the latest release was preserved.',
+    };
   const payload = {
-    tag_name: tag,
     name: `${tag} — Leonida Atlas local-first`,
-    body,
-    draft: false,
-    prerelease: false,
+    body: sections[0].body,
     make_latest: 'true',
   };
-  const unchanged =
-    published(existing) &&
-    !existing.prerelease &&
-    existing.name === payload.name &&
-    existing.body === body;
-  const current = unchanged
-    ? existing
-    : await request(
-        existing ? 'PATCH' : 'POST',
-        existing ? `/releases/${existing.id}` : '/releases',
-        payload,
-      );
-  if (!validRelease(current))
-    throw new Error('Publication returned an invalid release; pruning is disabled.');
-  await verifyRelease(current.id);
-
-  const refreshed = await listReleases();
-  if (hasNewer(refreshed))
-    return { tag, deleted: [], skipped: 'A newer version appeared; older releases were retained.' };
-  const deleted = [];
-  for (const candidate of refreshed.filter((item) => item.id !== current.id && isOlder(item))) {
-    // Re-read each candidate: a draft or retagged release must not be deleted from an old listing.
-    const latest = await request('GET', `/releases/${candidate.id}`, undefined, true);
-    if (!latest) continue;
-    if (!validRelease(latest)) throw new Error('A release changed unexpectedly; pruning stopped.');
-    if (hasNewer([latest]))
-      return { tag, deleted, skipped: 'A newer version appeared; pruning stopped.' };
-    if (latest.id !== candidate.id || latest.id === current.id || !isOlder(latest)) continue;
-    // If someone removed the replacement, keep the remaining historical releases.
-    await verifyRelease(current.id);
-    await request('DELETE', `/releases/${latest.id}`, undefined, true);
-    deleted.push(latest.tag_name);
+  if (latest?.id !== current.id || current.name !== payload.name || current.body !== payload.body) {
+    // Recheck publication state immediately before updating this exact release ID.
+    requirePublished(await readRelease(tag), tag, current.id);
+    const updated = await request('PATCH', `/releases/${current.id}`, payload);
+    requirePublished(updated, tag, current.id);
+    requirePublished(await request('GET', '/releases/latest'), tag, current.id);
   }
-  return { tag, deleted, skipped: null };
+  return { tag, created, retained, latest: true, skipped: null };
 }
 
 async function main() {
@@ -195,11 +284,11 @@ async function main() {
     repository: process.env.GITHUB_REPOSITORY,
     tag,
     token: process.env.GITHUB_TOKEN,
-    body: await readFile(new URL('../RELEASES.md', import.meta.url), 'utf8'),
+    releaseNotes: await readFile(new URL('../RELEASES.md', import.meta.url), 'utf8'),
   });
   console.log(
     result.skipped ??
-      `Published ${result.tag}; removed ${result.deleted.length} older releases. Git tags and history were retained.`,
+      `Published ${result.tag}; created ${result.created.length} missing releases and retained release history.`,
   );
 }
 

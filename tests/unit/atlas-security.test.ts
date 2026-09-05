@@ -1,15 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { initializeAnalytics } from '../../src/app/analytics';
 
 const finalizer = resolve('scripts/finalize-build.mjs');
 const base = '/atlas/';
 const origin = 'https://atlas.example';
+const measurementOrigin = 'https://measurement.example';
 const testId = `G-${'0'.repeat(8)}`;
 const temporaryDirectories: string[] = [];
 
@@ -48,7 +47,14 @@ function finalize(directory: string, id = '') {
   // An explicit ID (including empty) avoids loading any real deployment env file.
   execFileSync(process.execPath, [finalizer], {
     cwd: directory,
-    env: { ...process.env, ATLAS_OUT_DIR: 'dist', ATLAS_BASE_PATH: base, VITE_ANALYTICS_ID: id },
+    env: {
+      ...process.env,
+      ATLAS_OUT_DIR: 'dist',
+      ATLAS_BASE_PATH: base,
+      VITE_ANALYTICS_ID: id,
+      VITE_ANALYTICS_ORIGIN: measurementOrigin,
+      VITE_ANALYTICS_PARENT_ORIGIN: origin,
+    },
     stdio: 'pipe',
     timeout: 15_000,
   });
@@ -190,203 +196,207 @@ describe('generated service worker privacy and availability', () => {
   });
 });
 
-interface FrameDescription {
-  tagName: string;
-  dataset: Record<string, string>;
-  attributes: Record<string, string>;
-  hidden?: boolean;
-  title?: string;
-  referrerPolicy?: string;
-  src?: string;
-  setAttribute(name: string, value: string): void;
-}
-
-function analyticsDocument() {
-  const appended: FrameDescription[] = [];
-  vi.stubGlobal('navigator', { onLine: true });
-  vi.stubGlobal('document', {
-    querySelector: () => appended.find((node) => node.dataset.atlasAnalytics),
-    createElement: (tagName: string): FrameDescription => ({
-      tagName,
-      dataset: {},
-      attributes: {},
-      setAttribute(name, value) {
-        this.attributes[name] = value;
-      },
-    }),
-    body: { append: (node: FrameDescription) => appended.push(node) },
-  });
-  vi.stubEnv('DEV', false);
-  vi.stubEnv('BASE_URL', base);
-  return appended;
-}
-
-function runBootstrap(source: string, options: { topLevel?: boolean; frameOrigin?: string } = {}) {
+function runBootstrap(
+  source: string,
+  options: {
+    topLevel?: boolean;
+    frameOrigin?: string;
+    locationOrigin?: string;
+    configure?: boolean;
+  } = {},
+) {
   const externalScripts: Array<{ src?: string }> = [];
-  const host: { dataLayer?: Array<IArguments>; parent?: object; origin: string } = {
-    origin: options.frameOrigin ?? 'null',
+  const messages: unknown[] = [];
+  const cookieWrites: string[] = [];
+  const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+  const host: {
+    dataLayer?: Array<IArguments>;
+    parent?: object;
+    origin: string;
+    addEventListener: (type: string, handler: (event: Record<string, unknown>) => void) => void;
+    [key: string]: unknown;
+  } = {
+    origin: options.frameOrigin ?? measurementOrigin,
+    addEventListener: (type, handler) => handlers.set(type, handler),
   };
-  // Comparing a parent WindowProxy is allowed; reading its document is not.
   const inaccessibleParent = new Proxy(
     {},
     {
-      get() {
-        throw new Error('Opaque frame cannot access the parent document or storage');
+      get(_target, key) {
+        if (key === 'postMessage')
+          return (message: unknown, target: string) => {
+            messages.push({ message, target });
+          };
+        throw new Error('The measurement frame cannot access its parent document or storage');
       },
     },
   );
   host.parent = options.topLevel ? host : inaccessibleParent;
-  const document: {
-    cookie?: string;
-    createElement: () => object;
-    head: { appendChild: (script: { src?: string }) => void };
-  } = {
+  const document = {
+    body: { style: {} },
     createElement: () => ({}),
-    head: { appendChild: (script) => externalScripts.push(script) },
+    head: { appendChild: (script: { src?: string }) => externalScripts.push(script) },
   };
-  // Model the native opaque-origin cookie accessor: direct access throws until
-  // the emitted bootstrap installs its own empty, non-persisting facade.
-  Object.setPrototypeOf(document, {
-    get cookie() {
-      throw new Error('Opaque origin cannot read cookies');
+  Object.defineProperty(document, 'cookie', {
+    get() {
+      return '';
     },
-    set cookie(_value: string) {
-      throw new Error('Opaque origin cannot write cookies');
+    set(value: string) {
+      cookieWrites.push(value);
     },
   });
   const context = {
     window: host,
     parent: host.parent,
-    crypto: { randomUUID },
     location: {
-      origin,
-      href: `${origin}/atlas/analytics.html?private-note=never-send`,
+      origin: options.locationOrigin ?? measurementOrigin,
+      href: `${measurementOrigin}/atlas/analytics.html?private-note=never-send`,
       search: '?private-note=never-send',
     },
     document,
   };
-  for (const property of ['localStorage', 'indexedDB']) {
-    for (const target of [context, host]) {
+  for (const property of ['localStorage', 'indexedDB'])
+    for (const target of [context, host])
       Object.defineProperty(target, property, {
         get() {
           throw new Error(`Bootstrap accessed ${property}`);
         },
       });
-    }
-  }
   runInNewContext(source, context);
+  const dispatch = (data: unknown, overrides: Record<string, unknown> = {}) =>
+    handlers.get('message')?.({ source: host.parent, origin, data, ...overrides });
+  if (options.configure) dispatch({ type: 'atlas:analytics:configure', consent: 'granted' });
   return {
     document,
+    host,
     externalScripts,
-    commands: host.dataLayer?.map((command) => Array.from(command)) ?? [],
+    messages,
+    cookieWrites,
+    dispatch,
+    commands: () => host.dataLayer?.map((command) => Array.from(command)) ?? [],
   };
 }
 
-describe('optional analytics isolation', () => {
-  it('creates one opaque iframe with no referrer and no private URL parameters', () => {
-    const appended = analyticsDocument();
-    initializeAnalytics(testId);
-    initializeAnalytics(testId);
-    expect(appended).toHaveLength(1);
-    expect(appended[0]).toMatchObject({
-      tagName: 'iframe',
-      hidden: true,
-      referrerPolicy: 'no-referrer',
-      src: '/atlas/analytics.html',
-      attributes: { sandbox: 'allow-scripts' },
-    });
-  });
-
-  it('loads no analytics for a fresh fork, development, invalid IDs or offline startup', () => {
-    const appended = analyticsDocument();
-    initializeAnalytics(undefined);
-    initializeAnalytics('invalid<script>');
-    vi.stubEnv('DEV', true);
-    initializeAnalytics(testId);
-    vi.stubEnv('DEV', false);
-    vi.stubGlobal('navigator', { onLine: false });
-    initializeAnalytics(testId);
-    expect(appended).toEqual([]);
-  });
-
-  it('runs the emitted bootstrap with sanitized locations and a fresh transient client identity', async () => {
+describe('optional analytics separate-origin isolation', () => {
+  it('waits for exact consent from the verified parent before loading any Google script', async () => {
     const directory = await fixture();
     finalize(directory, testId);
-    const bootstrap = await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8');
-    const first = runBootstrap(bootstrap);
-    const second = runBootstrap(bootstrap);
-    const config = first.commands.find((command) => command[0] === 'config')?.[2] as Record<
-      string,
-      unknown
-    >;
-    const secondConfig = second.commands.find((command) => command[0] === 'config')?.[2] as Record<
+    const bootstrap = runBootstrap(
+      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
+    );
+    expect(bootstrap.messages).toEqual([
+      { message: { type: 'atlas:analytics:ready' }, target: origin },
+    ]);
+    expect(bootstrap.externalScripts).toEqual([]);
+    bootstrap.dispatch({ type: 'atlas:analytics:configure', consent: 'granted' }, { source: {} });
+    bootstrap.dispatch(
+      { type: 'atlas:analytics:configure', consent: 'granted' },
+      { origin: 'https://attacker.example' },
+    );
+    bootstrap.dispatch({
+      type: 'atlas:analytics:configure',
+      consent: 'granted',
+      notes: 'never-send',
+    });
+    bootstrap.dispatch({ type: 'atlas:analytics:configure', consent: 'denied' });
+    expect(bootstrap.externalScripts).toEqual([]);
+    bootstrap.dispatch({ type: 'atlas:analytics:configure', consent: 'granted' });
+    bootstrap.dispatch({ type: 'atlas:analytics:configure', consent: 'granted' });
+    expect(bootstrap.externalScripts).toHaveLength(1);
+    expect(new URL(bootstrap.externalScripts[0]!.src!).origin).toBe(
+      'https://www.googletagmanager.com',
+    );
+  });
+  it('uses normal scoped SDK cookies and sanitized page locations without fabricated client/session IDs', async () => {
+    const directory = await fixture();
+    finalize(directory, testId);
+    const bootstrap = runBootstrap(
+      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
+      { configure: true },
+    );
+    const config = bootstrap.commands().find((command) => command[0] === 'config')?.[2] as Record<
       string,
       unknown
     >;
     expect(config).toMatchObject({
       send_page_view: false,
+      cookie_domain: 'none',
+      cookie_path: base,
+      cookie_prefix: 'atlas',
+      cookie_flags: 'SameSite=Lax;Secure',
       page_location: `${origin}/atlas/`,
       page_referrer: '',
       allow_google_signals: false,
       allow_ad_personalization_signals: false,
     });
-    expect(config.client_id).not.toBe(secondConfig.client_id);
-    expect(first.commands.filter((command) => command[0] === 'event')).toEqual([
+    expect(config).not.toHaveProperty('client_id');
+    expect(config).not.toHaveProperty('session_id');
+    expect(bootstrap.commands()[0]).toEqual([
+      'consent',
+      'default',
+      {
+        analytics_storage: 'granted',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+      },
+    ]);
+    expect(bootstrap.commands().filter((command) => command[0] === 'event')).toEqual([
       [
         'event',
         'page_view',
         { page_title: 'Leonida Atlas', page_location: `${origin}/atlas/`, page_referrer: '' },
       ],
     ]);
-    expect(JSON.stringify(first.commands)).not.toContain('never-send');
-    expect(first.externalScripts).toHaveLength(1);
-    expect(new URL(first.externalScripts[0]!.src!).origin).toBe('https://www.googletagmanager.com');
+    expect(JSON.stringify(bootstrap.commands())).not.toContain('never-send');
+    expect(bootstrap.document.body.style).toEqual({ minHeight: '10000px' });
+  });
+  it('withdraws consent without loading Google and clears only its namespaced host cookies', async () => {
+    const directory = await fixture();
+    finalize(directory, testId);
+    const bootstrap = runBootstrap(
+      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
+    );
+    bootstrap.dispatch({ type: 'atlas:analytics:revoke' });
+    expect(bootstrap.host[`ga-disable-${testId}`]).toBe(true);
+    expect(bootstrap.cookieWrites).toEqual([
+      `atlas_ga=; Max-Age=0; Path=${base}; SameSite=Lax; Secure`,
+      `atlas_ga_${testId.slice(2)}=; Max-Age=0; Path=${base}; SameSite=Lax; Secure`,
+    ]);
+    expect(bootstrap.messages.at(-1)).toEqual({
+      message: { type: 'atlas:analytics:revoked' },
+      target: origin,
+    });
+    bootstrap.dispatch({ type: 'atlas:analytics:configure', consent: 'granted' });
+    expect(bootstrap.externalScripts).toEqual([]);
+  });
+  it.each([
+    { name: 'direct helper page', topLevel: true },
+    { name: 'opaque frame', frameOrigin: 'null' },
+    { name: 'app-origin frame', frameOrigin: origin, locationOrigin: origin },
+    {
+      name: 'unexpected helper host',
+      frameOrigin: 'https://attacker.example',
+      locationOrigin: 'https://attacker.example',
+    },
+  ])('fails closed in a $name', async (options) => {
+    const directory = await fixture();
+    finalize(directory, testId);
+    const bootstrap = runBootstrap(
+      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
+      { ...options, configure: true },
+    );
+    expect(bootstrap.messages).toEqual([]);
+    expect(bootstrap.externalScripts).toEqual([]);
+    expect(bootstrap.commands()).toEqual([]);
+  });
+  it('emits no enabled tag for an invalid measurement ID', async () => {
+    const directory = await fixture();
     finalize(directory, 'invalid<script>');
     expect(
-      runBootstrap(await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8')).commands,
+      runBootstrap(await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'), {
+        configure: true,
+      }).commands(),
     ).toEqual([]);
-  });
-
-  it('allows cookieless measurement without enabling cookie reads, persistence or storage access', async () => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
-    );
-    expect(bootstrap.document.cookie).toBe('');
-    bootstrap.document.cookie = '_ga=must-not-persist; Path=/';
-    expect(bootstrap.document.cookie).toBe('');
-    expect(
-      Reflect.defineProperty(bootstrap.document, 'cookie', { value: 'replacement-cookie' }),
-    ).toBe(false);
-    expect(bootstrap.document.cookie).toBe('');
-    expect(bootstrap.commands[0]).toEqual([
-      'consent',
-      'default',
-      {
-        analytics_storage: 'denied',
-        ad_storage: 'denied',
-        ad_user_data: 'denied',
-        ad_personalization: 'denied',
-      },
-    ]);
-    expect(
-      bootstrap.commands.some((command) => command[0] === 'event' && command[1] === 'page_view'),
-    ).toBe(true);
-  });
-
-  it.each([
-    { name: 'direct page', topLevel: true, frameOrigin: origin },
-    { name: 'unsandboxed frame', topLevel: false, frameOrigin: origin },
-    { name: 'opaque top-level page', topLevel: true, frameOrigin: 'null' },
-  ])('loads no Google tag in a $name', async (options) => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
-      options,
-    );
-    expect(bootstrap.commands).toEqual([]);
-    expect(bootstrap.externalScripts).toEqual([]);
   });
 });

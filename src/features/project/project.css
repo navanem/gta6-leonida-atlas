@@ -156,6 +156,51 @@
   font-size: 12px;
   color: #7e8c79;
 }
+.project-release-history {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.project-section .project-release-card {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #dbe1d8;
+  border-radius: 10px;
+  background: #fff;
+}
+.project-release-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+}
+.project-release-meta > a {
+  font-weight: 650;
+}
+.project-release-meta time {
+  margin-left: auto;
+  color: #63776d;
+}
+.project-release-current {
+  padding: 1px 8px;
+  border-radius: 12px;
+  background: #e7ecdf;
+  color: #315842;
+  font-size: 11px;
+}
+.project-release-card h3 {
+  margin: 10px 0 6px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #365843;
+}
+.project-section .project-release-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
 .project-article > footer {
   margin-top: 45px;
   padding-top: 25px;

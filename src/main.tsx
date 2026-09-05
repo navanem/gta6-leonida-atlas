@@ -7,6 +7,7 @@ import '@fontsource/oswald/500.css';
 import App from './app/App';
 import { AccountExtension } from './capabilities/AccountExtension';
 import { initializeAnalytics } from './app/analytics';
+import { AnalyticsConsent } from './app/AnalyticsConsent';
 import './app/atlas.css';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -33,15 +34,16 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
     );
   }
 }
+initializeAnalytics(import.meta.env.VITE_ANALYTICS_ID);
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
       <AccountExtension />
+      <AnalyticsConsent />
     </ErrorBoundary>
   </StrictMode>,
 );
-initializeAnalytics(import.meta.env.VITE_ANALYTICS_ID);
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker

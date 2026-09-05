@@ -29,8 +29,11 @@ At refactor start, 303 tests / 32 files passed. The catalogue contained 2,198 GT
 ## Delivery constraints
 
 - Preserve Google Analytics → the user explicitly requested it → enable it only through ignored local/hosting configuration; isolate its script from personal application data.
-- Publication authorization updated → the user approved production publication, a GitHub push and a current release → release-facing files show only the current version; external results are recorded after verification.
+- Publication authorization updated → the user approved production publication, a GitHub push and a current release → release-facing files retain history from v0.5.0 onward; external results are recorded after verification.
 - Real accounts requested → deploy a dedicated private user service and panel on the existing host, outside the public repository; no CMS coupling or new paid/cloud resource.
 - Email + unique username + password → user requested no email confirmation for now; enforce normalized uniqueness on the server and provide personal recovery keys.
 - Separate local namespaces and explicit server backups → preserve guest work, prevent cross-account mixing, reject stale server revisions.
 - Selected map destination → carry the place ID and validated coordinates into the actual 3D spawn; retain documented approach offsets and the default entry only when no place is selected.
+
+- Retain release history from v0.5.0 → updated user preference → restore the historical GitHub release, keep earlier entries, and show dates, summaries and version links in About as well as Changelog.
+- Repair visitor measurement → the previous iframe sent only denied-consent pings with a new identity per load, and Google's SDK aborts consented events from an opaque origin → load Google only after an explicit visitor choice in a dedicated, separate-origin helper, keep normal scoped measurement cookies after acceptance and offer withdrawal in About. The browser origin boundary excludes all account and personal Atlas data; source/origin-checked messages carry only consent.

@@ -2,7 +2,7 @@
 
 A standalone, local-first interactive community map of GTA VI's Leonida. Explore the map, search public places, organize favorites and collections, write notes, and create personal markers without an account. The existing approximate 3D explorer remains available as an optional module.
 
-Current release: **v0.6.0 — 5 September 2026**. See the [release notes](RELEASES.md).
+Current release: **v0.6.1 — 5 September 2026**. See the [release notes](RELEASES.md). About and Changelog retain every release from v0.5.0 onward.
 
 This is an independent fan project, not an official Rockstar map. Community positions are **APPROXIMATE**; missing geography remains **UNKNOWN**. The pinned public catalogue contains 2,198 GTADB records (2,091 positioned and 107 unpositioned), plus six regional entries. Unpositioned records remain searchable and never acquire invented coordinates.
 
@@ -91,9 +91,13 @@ Private account code, session handling, server credentials and deployment config
 
 ## Google Analytics
 
-Analytics is retained as an optional production capability. `VITE_ANALYTICS_ID` defaults to empty. Keep an instance's public measurement ID in ignored `.env.local` or hosting build settings; the repository example contains no real ID. Development mode does not load Analytics.
+Analytics is retained as an optional production capability. `VITE_ANALYTICS_ID`, `VITE_ANALYTICS_ORIGIN` and `VITE_ANALYTICS_PARENT_ORIGIN` default to empty. Keep instance values in ignored `.env.local` or hosting build settings; the repository example contains no real ID or origin. Development mode does not load Analytics. The helper must use a separate HTTPS origin, and the parent origin must match the actual app origin; missing or same-origin configuration disables measurement.
 
-The tag runs in a dedicated **opaque sandboxed iframe** with no `allow-same-origin`, no referrer and no messages carrying application data. It cannot access the app's DOM, IndexedDB, search history, notes, markers or collections. Its page location is the static Atlas root and its client ID is temporary. This counts anonymous visits; it deliberately does not provide persistent cross-session user attribution or personalized feature analytics. Enabling GA does not enable accounts or cloud sync.
+The visitor chooses whether to allow audience measurement; the choice can be changed in **About → Audience measurement**. Google loads only after acceptance. A dedicated random browser ID enables returning-browser counts without using an Atlas account ID. Declining stops measurement and removes its saved identifiers. Advertising storage, signals and personalization stay disabled.
+
+The tag runs in a **sandboxed iframe on a separate origin**, with no referrer. The browser's origin boundary prevents access to the app's DOM and IndexedDB. A validated message supplies only consent; page location stays the static Atlas root. The helper uses its own scoped measurement cookies. Account details, searches and personal application data never enter the frame. Enabling GA does not enable accounts or cloud sync. Network delivery can be verified independently of a property's reports; reports count consenting visitors and remain subject to Google processing and browser blockers.
+
+To enable this optional integration, serve only `analytics.html` and `analytics-bootstrap.js` from the dedicated helper origin. Its host must not serve the app or private API. Configure the app's Content Security Policy to permit `frame-src` for that origin and the helper's policy to permit only the configured parent in `frame-ancestors`. The default guest Nginx policy intentionally permits only its own origin; an Analytics deployment needs those explicit policy overrides and hostname routing. Keep both helper files uncached. Withdrawal clears measurement cookies through the helper; if it is unreachable, cleanup resumes when the connection returns, with Google disabled during cleanup.
 
 ## Static deployment
 
@@ -121,7 +125,7 @@ The container serves only the app with security headers. No database or user bac
 
 Run the Atlas on its own static hosting target. Keep the parent website deployment separate; this package does not require it.
 
-An existing Traefik proxy can route a dedicated path to this container using [the production deployment guide](deploy/README.md). The instance hostname, route and Analytics identifier stay in ignored configuration. The release workflow validates a pushed version tag, publishes its notes, and removes older published releases only after the replacement is verified. Git history and tags are retained.
+An existing Traefik proxy can route a dedicated path to this container using [the production deployment guide](deploy/README.md). The instance hostname, route and Analytics identifier stay in ignored configuration. The release workflow validates a pushed version tag and publishes its version-specific notes. It preserves existing releases and restores missing entries from v0.5.0 onward using their existing Git tags. The newest release remains marked as latest.
 
 ## License
 

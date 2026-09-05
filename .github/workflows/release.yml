@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
-      - name: Publish current release, then prune older published versions
+      - name: Backfill tagged releases and publish the current version as latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/publish-release.mjs

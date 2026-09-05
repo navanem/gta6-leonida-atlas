@@ -8,6 +8,8 @@ services:
       args:
         ATLAS_BASE_PATH: '${ATLAS_ROUTE_PREFIX:?Set a path prefix without trailing slash}/'
         VITE_ANALYTICS_ID: '${VITE_ANALYTICS_ID:-}'
+        VITE_ANALYTICS_ORIGIN: '${VITE_ANALYTICS_ORIGIN:-}'
+        VITE_ANALYTICS_PARENT_ORIGIN: '${VITE_ANALYTICS_PARENT_ORIGIN:-}'
     image: '${ATLAS_IMAGE:-leonida-atlas:prod}'
     container_name: leonida-atlas-web
     restart: unless-stopped

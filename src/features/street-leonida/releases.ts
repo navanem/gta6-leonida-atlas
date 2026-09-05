@@ -8,8 +8,26 @@ export interface LeonidaAtlasRelease {
   readonly verification: readonly string[];
 }
 
-/** The public changelog intentionally contains only the current release. */
+/** Retained public history starts at v0.5.0; the newest release stays first. */
 export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
+  {
+    version: 'v0.6.1',
+    date: '2026-09-05',
+    title: 'Visitor measurement and release history',
+    summary: 'Consent-based visitor measurement and an About page with every release since v0.5.0.',
+    status: 'public',
+    highlights: [
+      'Visitors can allow or decline audience measurement and change their choice in About. Accepted visits use a separate random browser identifier; personal Atlas data stays isolated from Analytics.',
+      'About lists the current version and earlier releases, with dates and a short description of each update.',
+      'The changelog retains the complete history from v0.5.0, ordered from newest to oldest.',
+      'GitHub publication preserves existing releases and restores missing historical entries without replacing the latest version.',
+    ],
+    verification: [
+      'TypeScript, lint, release-history rendering and publication lifecycle tests passed.',
+      'About and changelog links were checked in desktop and mobile browsers.',
+      'Google accepted consented test visits with stable browser and session identifiers. Consent withdrawal, origin isolation and cross-tab changes were checked; the private Analytics dashboard is outside this verification.',
+    ],
+  },
   {
     version: 'v0.6.0',
     date: '2026-09-05',
@@ -32,6 +50,30 @@ export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
     verification: [
       'Frozen installation, strict types, lint, unit/integration tests, static build and isolated public-fork checks passed.',
       'Desktop Chromium and mobile WebKit exercise map and local-data flows. WebKit offline-navigation is explicitly skipped when its automation runtime fails; Chromium verifies offline reopening and selected 3D spawning.',
+      'An isolated subdirectory build verified map data, saved markers, project links, historical routes, 3D assets and service-worker scope. The standalone Nginx container passed the browser suite.',
+      'Dependency audit and peer checks passed. Analytics isolation and emitted offline-worker boundaries were verified; the full scope and limitations are in docs/refactor/VERIFICATION.md.',
+    ],
+  },
+  {
+    version: 'v0.5.0',
+    date: '2026-09-05',
+    title: 'Standalone local-first Atlas',
+    summary:
+      'A standalone map workspace with local favorites, notes, collections, personal markers and portable backups, plus an optional 3D explorer.',
+    status: 'public',
+    highlights: [
+      'React, Vite and strict TypeScript replace the Astro shell and build. Static hosting requires no CMS, parent website, account or private API.',
+      'The calibrated Leaflet CRS.Simple map supports search, intersecting filters, ordered layers, zoom rules, bounded spatial clustering and source details.',
+      'Dexie / IndexedDB stores favorites, notes, collections, markers and preferences with schema upgrades, transactional saves, cross-tab updates and stale-draft protection.',
+      'The personal marker editor supports create, edit, move and delete. Versioned backups are validated and previewed before an atomic merge.',
+      'Offline caching preserves the app shell, public catalogue and basemap after a complete online load. Optional 3D assets are cached as visited with bounded storage.',
+      'The existing Three.js reconstruction loads on demand, with desktop and touch controls, regional travel, evidence panels and a fallback when WebGL is unavailable.',
+      'Public forks work as guests without credentials. Account and cloud-sync contracts remain optional; Analytics is isolated and enabled only by deployment configuration.',
+      'GTADB / Map GTA attribution and CC BY 4.0 data licensing are retained: 2,198 source records, including 2,091 positioned and 107 unpositioned entries, plus six regions. Community placement remains APPROXIMATE and absent coverage UNKNOWN.',
+    ],
+    verification: [
+      'Frozen installation, strict types, lint, unit/integration tests, static build and isolated public-fork checks passed.',
+      'Desktop Chromium and mobile WebKit passed 17 browser cases; one WebKit offline-navigation case is explicitly skipped when its automation runtime fails. Chromium verifies offline reopening.',
       'An isolated subdirectory build verified map data, saved markers, project links, historical routes, 3D assets and service-worker scope. The standalone Nginx container passed the browser suite.',
       'Dependency audit and peer checks passed. Analytics isolation and emitted offline-worker boundaries were verified; the full scope and limitations are in docs/refactor/VERIFICATION.md.',
     ],

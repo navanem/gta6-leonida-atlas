@@ -1,0 +1,591 @@
+.explorer-view {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #173b49;
+  color: #edf4ee;
+  font:
+    14px/1.5 Inter,
+    sans-serif;
+}
+.explorer-view * {
+  box-sizing: border-box;
+}
+.explorer-view [hidden] {
+  display: none !important;
+}
+.explorer-view button,
+.explorer-view input {
+  font: inherit;
+}
+.explorer-view button,
+.explorer-view summary {
+  cursor: pointer;
+}
+.explorer-view button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 13px;
+  border: 1px solid #66808970;
+  border-radius: 6px;
+  background: #153442;
+  color: #f3f6ed;
+}
+.explorer-view button:hover {
+  background: #254e5c;
+}
+.explorer-view button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.explorer-view :is(button, input, summary, a, svg):focus-visible {
+  outline: 3px solid #e8c06b;
+  outline-offset: 3px;
+}
+.explorer-view a {
+  color: #f0d393;
+}
+.explorer-world {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+.explorer-world > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+.explorer-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 22px;
+  background: linear-gradient(#09202aeb, #09202a00);
+}
+.explorer-toolbar h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+}
+.explorer-kicker {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  color: #bfd0ca;
+}
+.explorer-toolbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.explorer-toolbar kbd {
+  margin-left: 6px;
+  opacity: 0.7;
+}
+.explorer-loading,
+.explorer-unavailable {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 25px;
+  border: 1px solid #547079;
+  border-radius: 12px;
+  background: #102d3bef;
+  width: min(90%, 430px);
+  text-align: center;
+}
+.explorer-unavailable h2 {
+  margin-top: 0;
+}
+.explorer-unavailable button + button {
+  margin-top: 10px;
+}
+.explorer-hud {
+  position: absolute;
+  top: 110px;
+  left: 22px;
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  padding: 12px 15px;
+  border-radius: 7px;
+  background: #0d2839bb;
+  pointer-events: none;
+}
+.explorer-hud strong {
+  font-size: 17px;
+}
+.explorer-hud span,
+.explorer-hud small {
+  font-size: 11px;
+  color: #c3d3cf;
+}
+.explorer-hud b {
+  position: absolute;
+  right: -42px;
+  top: 3px;
+  background: #0d2839bb;
+  padding: 8px 12px;
+  border-radius: 30px;
+}
+.explorer-arrival {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 100px;
+  transform: translateX(-50%);
+  max-width: 600px;
+  width: 50%;
+  background: #182f39e8;
+  border: 1px solid #d6b66d;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.explorer-zoom {
+  position: absolute;
+  right: 22px;
+  top: 120px;
+  display: grid;
+  text-align: center;
+  gap: 6px;
+}
+.explorer-zoom output {
+  font-size: 11px;
+  background: #102d3bba;
+}
+.explorer-controls-hint,
+.explorer-lock-hint {
+  position: absolute;
+  bottom: 61px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 5px;
+  background: #0d2839c9;
+  font-size: 11px;
+  text-align: center;
+}
+.explorer-lock-hint {
+  bottom: 96px;
+}
+.explorer-prompt {
+  position: absolute;
+  bottom: 150px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.explorer-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #0c2431ed;
+  padding: 7px 16px;
+  padding-bottom: calc(7px + env(safe-area-inset-bottom, 0px));
+}
+.explorer-attribution {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.7;
+}
+.explorer-buttons {
+  position: absolute;
+  bottom: 69px;
+  left: 22px;
+  z-index: 5;
+  max-width: 310px;
+  padding: 8px;
+  background: #102d3bdd;
+  border-radius: 7px;
+}
+.explorer-buttons summary {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.explorer-buttons [role='group'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.explorer-touch {
+  display: none;
+}
+.explorer-dialog {
+  background: #102d3b;
+  color: #eef4ed;
+  border: 1px solid #526a70;
+  padding: 0;
+  border-radius: 12px;
+  max-height: 90dvh;
+  width: min(720px, calc(100% - 24px));
+}
+.explorer-dialog::backdrop {
+  background: #05151dbf;
+}
+.explorer-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #45636a70;
+}
+.explorer-dialog h2 {
+  font-size: 21px;
+  margin: 0;
+}
+.explorer-dialog-copy {
+  padding: 10px 24px 25px;
+}
+.explorer-dialog-copy p {
+  margin: 14px 0;
+}
+.explorer-dialog-copy dt {
+  margin-top: 13px;
+  color: #eac584;
+  font-size: 12px;
+  font-weight: 600;
+}
+.explorer-dialog-copy dd {
+  margin: 3px 0;
+}
+.explorer-dialog-copy img {
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
+.explorer-map {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+}
+.explorer-map[open] {
+  display: flex;
+  flex-direction: column;
+}
+.explorer-map > header {
+  flex: none;
+}
+.explorer-map-header-actions {
+  display: flex;
+  gap: 6px;
+}
+.explorer-destinations-toggle,
+.explorer-destinations-close {
+  display: none;
+}
+.explorer-map-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  flex: 1;
+  min-height: 0;
+}
+.explorer-map-drawing {
+  position: relative;
+  min-height: 0;
+  background: #173b49;
+}
+.explorer-map-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.explorer-map-viewport > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.explorer-map-viewport > svg:active {
+  cursor: grabbing;
+}
+.explorer-map-tools {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  background: #102d3be0;
+  border-radius: 7px;
+}
+.explorer-map-tools output {
+  min-width: 45px;
+  text-align: center;
+  font-size: 12px;
+}
+.explorer-map-pose {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 14px;
+  background: #102d3bde;
+  border-radius: 7px;
+  pointer-events: none;
+}
+.explorer-map-pose span,
+.explorer-map-pose small {
+  font-size: 11px;
+}
+.explorer-map-pose [data-walk-map-live-world],
+.explorer-map-pose [data-walk-map-live-evidence] {
+  display: none;
+}
+.explorer-destinations {
+  padding: 18px;
+  overflow-y: auto;
+  border-left: 1px solid #45636a;
+  font-size: 12px;
+}
+.explorer-destinations label {
+  display: grid;
+  gap: 7px;
+}
+.explorer-destinations input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: #f1f5ee;
+  background: #0d2330;
+  border: 1px solid #617d83;
+  border-radius: 5px;
+}
+.explorer-destinations details {
+  margin: 18px 0;
+}
+.explorer-regions {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.explorer-regions button {
+  text-align: left;
+}
+.explorer-regions small {
+  display: block;
+  font-size: 9px;
+  color: #b8c8bf;
+}
+.explorer-layer-toggles {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.explorer-search-results {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+.explorer-search-results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  text-align: left;
+  width: 100%;
+}
+.explorer-search-results button span {
+  display: grid;
+  gap: 3px;
+}
+.explorer-search-results button small {
+  font-size: 10px;
+}
+.explorer-map > footer {
+  padding: 8px 18px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  background: #0c2431;
+  flex: none;
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .explorer-toolbar {
+    padding: 10px 12px;
+    top: env(safe-area-inset-top, 0px);
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .explorer-toolbar h1 {
+    font-size: 16px;
+  }
+  .explorer-toolbar .explorer-kicker {
+    font-size: 8px;
+  }
+  .explorer-toolbar nav {
+    max-width: 220px;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+  .explorer-toolbar button {
+    font-size: 11px;
+    padding: 6px 8px;
+    min-height: 44px;
+  }
+  .explorer-toolbar kbd {
+    display: none;
+  }
+  .explorer-hud {
+    top: calc(128px + env(safe-area-inset-top, 0px));
+    left: 12px;
+    max-width: 240px;
+  }
+  .explorer-zoom {
+    right: 12px;
+    top: calc(158px + env(safe-area-inset-top, 0px));
+  }
+  .explorer-arrival {
+    top: calc(225px + env(safe-area-inset-top, 0px));
+    width: calc(100% - 24px);
+  }
+  .explorer-controls-hint,
+  .explorer-lock-hint {
+    display: none;
+  }
+  .explorer-touch {
+    display: block;
+    position: absolute;
+    inset: auto 0 68px;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    height: 170px;
+    pointer-events: none;
+  }
+  .explorer-touch [data-walk-joystick] {
+    position: absolute;
+    bottom: 0;
+    left: 23px;
+    width: 116px;
+    height: 116px;
+    border: 1px solid #c2d3d26e;
+    border-radius: 50%;
+    background: #13364770;
+    touch-action: none;
+    pointer-events: auto;
+  }
+  .explorer-touch [data-walk-joystick-knob] {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 48px;
+    height: 48px;
+    margin: -24px 0 0 -24px;
+    background: #bed1cb96;
+    border-radius: 50%;
+  }
+  .explorer-touch [data-walk-joystick] small {
+    position: absolute;
+    bottom: -19px;
+    width: 100%;
+    text-align: center;
+    font-size: 9px;
+  }
+  .explorer-touch [data-walk-look-pad] {
+    position: absolute;
+    right: 20px;
+    bottom: 0;
+    width: 43%;
+    height: 170px;
+    border: 1px solid #b1c6c333;
+    border-radius: 18px;
+    touch-action: none;
+    pointer-events: auto;
+  }
+  .explorer-touch [data-walk-look-pad] small {
+    position: absolute;
+    bottom: 10px;
+    right: 15px;
+    font-size: 9px;
+  }
+  .explorer-touch button {
+    position: absolute;
+    top: -43px;
+    right: 25px;
+    pointer-events: auto;
+  }
+  .explorer-buttons {
+    left: 12px;
+    bottom: calc(243px + env(safe-area-inset-bottom, 0px));
+  }
+  .explorer-footer {
+    padding: 5px 10px;
+    padding-bottom: calc(5px + env(safe-area-inset-bottom, 0px));
+  }
+  .explorer-attribution {
+    font-size: 9px;
+  }
+  .explorer-map > header {
+    padding: 11px 14px;
+  }
+  .explorer-map h2 {
+    font-size: 16px;
+  }
+  .explorer-map-body {
+    display: block;
+    position: relative;
+  }
+  .explorer-map-drawing {
+    height: 100%;
+  }
+  .explorer-map-header-actions button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .explorer-destinations-toggle,
+  .explorer-destinations-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .explorer-destinations-close {
+    margin-bottom: 12px;
+  }
+  .explorer-map-tools {
+    top: 8px;
+    left: 8px;
+    gap: 3px;
+  }
+  .explorer-map-tools button {
+    padding: 5px 8px;
+    min-height: 44px;
+    font-size: 11px;
+  }
+  .explorer-map-pose {
+    bottom: 8px;
+    left: 8px;
+    padding: 6px 10px;
+  }
+  .explorer-destinations {
+    display: none;
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 4;
+    width: min(320px, 100%);
+    background: #102d3bf5;
+    border-left: 1px solid #45636a;
+    padding: 12px;
+  }
+  .explorer-map[data-destinations-open='true'] .explorer-destinations {
+    display: block;
+  }
+  .explorer-regions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

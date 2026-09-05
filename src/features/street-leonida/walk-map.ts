@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import {
   classifyGtadbEvidence,
   classifyGtadbUncertaintyReasons,
@@ -22,7 +23,7 @@ export { GTADB_MAP_MARKER_DOM_BUDGET } from './walk-map-marker-window';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 export const GTADB_MAP_ASSET_URL =
-  '/assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json' as const;
+  publicPath('assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json');
 
 export interface GtadbMapSnapshotSource {
   readonly repository: string;
@@ -751,16 +752,16 @@ export function loadGtadbLandmarkLayer(
         signal: abortController.signal,
       });
       if (!response.ok) throw new Error(`GTADB snapshot returned ${response.status}`);
-      const payload: unknown = await response.json();
+      const snapshotJson: unknown = await response.json();
       if (abortController.signal.aborted) return EMPTY_RENDER_RESULT;
-      if (!isGtadbMapSnapshot(payload)) throw new Error('Invalid pinned GTADB snapshot');
-      gtadbLayerSnapshots.set(svg, payload);
-      const result = renderGtadbLandmarkLayer(layer, payload, parseViewBox(svg));
+      if (!isGtadbMapSnapshot(snapshotJson)) throw new Error('Invalid pinned GTADB snapshot');
+      gtadbLayerSnapshots.set(svg, snapshotJson);
+      const result = renderGtadbLandmarkLayer(layer, snapshotJson, parseViewBox(svg));
       layer.setAttribute('data-gtadb-state', 'ready');
       layer.setAttribute('aria-busy', 'false');
       layer.removeAttribute?.('data-gtadb-error');
-      exposeGtadbMetadata(svg, payload, result);
-      syncNavigationCatalogue(svg, payload);
+      exposeGtadbMetadata(svg, snapshotJson, result);
+      syncNavigationCatalogue(svg, snapshotJson);
       return result;
     } catch (error) {
       gtadbLayerLoads.delete(svg);
@@ -1180,7 +1181,7 @@ function completeMapMarkup(prefix: string): string {
     <g data-walk-map-world>
       <rect data-walk-map-neutral-frame x="${MAP_BOUNDS.minX}" y="${MAP_BOUNDS.minY}" width="${MAP_BOUNDS.width}" height="${MAP_BOUNDS.height}" fill="#173b49"/>
       <g data-walk-map-original-cartography data-evidence="APPROXIMATE" aria-label="Source-derived community land, water, vegetation and transportation">
-        <image data-atlas-basemap href="/assets/gta6-leonida-atlas/basemap.svg" x="${MAP_BOUNDS.minX}" y="${MAP_BOUNDS.minY}" width="${MAP_BOUNDS.width}" height="${MAP_BOUNDS.height}" preserveAspectRatio="none"/>
+        <image data-atlas-basemap href="${publicPath('assets/gta6-leonida-atlas/basemap.svg')}" x="${MAP_BOUNDS.minX}" y="${MAP_BOUNDS.minY}" width="${MAP_BOUNDS.width}" height="${MAP_BOUNDS.height}" preserveAspectRatio="none"/>
         <g data-atlas-low-evidence-continuity data-evidence="UNKNOWN" aria-label="Low-evidence continuation: no mapped GTADB source coverage">
           <rect x="-32000" y="-24000" width="10000" height="40000" fill="#183b47" fill-opacity=".92"/>
           <rect x="-32000" y="-24000" width="10000" height="40000" fill="url(#${prefix}-unknown)"/>

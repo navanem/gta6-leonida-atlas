@@ -1,0 +1,33 @@
+# Atlas local-first decision log — 2026-09-05
+
+- Work in the existing Atlas checkout on `codex/atlas-local-first-20260905` → preserve the pre-existing uncommitted CMS removal → no changes to the parent website or its deployment.
+- React + Vite + strict TypeScript → map application state and standalone static hosting → replace Astro shell/config, retain useful typed algorithms and assets.
+- Leaflet CRS.Simple adapter → maintained keyboard/touch/drag lifecycle with exact GTADB game coordinates → reuse calibrated basemap, no geographical reprojection, no external tiles. Existing SVG engine stays with optional 3D.
+- Zustand stores by responsibility → targeted subscriptions, no viewport rerenders of the entire app → domain/UI/map/user/persistence remain distinct.
+- Dexie IndexedDB repositories → durable structured data, transactions and schema upgrades → local saves precede UI success; no localStorage rich-data fallback that falsely promises persistence.
+- Versioned validated portable backups → protect existing local data → preview before merge, transactional import, unsupported schemas and oversized files rejected.
+- Typed internal registry → layers/actions/filters/tools/data sources/panels can extend a small core → no remote executable plugins.
+- Guest capability defaults → forks need no credentials → auth/sync interfaces only; official private adapters live in a separate private service/package; no endpoint or analytics inherited.
+- Lazy optional existing Three explorer → preserve useful reconstruction → no Three in initial map bundle; deterministic coordinate/evidence tests retained.
+- Existing source-derived geography is authoritative input → no generated map assets → UI concept is a chrome/layout reference only; exact GTADB attribution replaces the concept's invented attribution.
+- Root and historical Atlas URLs → preserve bookmarks → Vite app route resolver plus generated static route entries; configurable public base path.
+- Deployment separation → Atlas has its own static build and standalone container → production hosting remains independent of the parent website service.
+
+## Baseline
+
+At refactor start, 303 tests / 32 files passed. The catalogue contained 2,198 GTADB records, 2,091 positioned and 107 unpositioned. The working tree already included CMS/API removal changes; those edits were preserved as inputs to the refactor.
+
+## Implementation and verification ledger
+
+- [x] Domain/state/map: typed catalogue, composable filters, layer ordering/zoom rules, spatial clustering, selection and editor events.
+- [x] Persistence: v1→v2 upgrade, repositories, notes/favorites/collections/markers/preferences, validated transactional merge, recovery errors.
+- [x] Shell: map-first React app, sidebar/search/library/details/editor/settings/backup, responsive keyboard flows.
+- [x] Legacy: optional 3D and project pages adapted; Astro runtime/build removed.
+- [x] Extensibility and capability interfaces, no automatic cloud side effects.
+- [x] Verify types/lint/unit/integration/browser/offline/mobile/fork/subpath/build/security; inspect bundle and Git; update docs. See VERIFICATION.md for evidence and limitations.
+
+## Delivery constraints
+
+- Preserve Google Analytics → the user explicitly requested it → enable it only through ignored local/hosting configuration; isolate its script from personal application data.
+- Publication authorization updated → the user approved production publication, a GitHub push and the v0.5.0 release → release-facing files show only the current version; external results are recorded after verification.
+- No configured independent private user service → avoid inventing infrastructure → ship guest behavior and capability contracts; official account/session/sync integration remains external and optional.

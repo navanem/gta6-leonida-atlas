@@ -1,7 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
-import astroPlugin from 'eslint-plugin-astro';
 
 export default tseslint.config(
   {
@@ -15,7 +14,6 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...astroPlugin.configs.recommended,
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -29,6 +27,9 @@ export default tseslint.config(
         process: 'readonly',
         console: 'readonly',
         setTimeout: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        fetch: 'readonly',
       },
     },
   },

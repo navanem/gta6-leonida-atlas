@@ -1,0 +1,213 @@
+.project-page {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow-y: auto;
+  background: #f7f8f3;
+  color: #243e3b;
+  font:
+    15px/1.8 Inter,
+    sans-serif;
+}
+.project-page * {
+  box-sizing: border-box;
+}
+.project-page a {
+  color: #39716a;
+  text-underline-offset: 3px;
+}
+.project-page :is(a, button):focus-visible {
+  outline: 3px solid #b38c45;
+  outline-offset: 4px;
+}
+.project-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px max(24px, calc((100% - 1160px) / 2));
+  border-bottom: 1px solid #dbe1d8;
+  background: #fff;
+}
+.project-header .project-brand {
+  color: #284b40;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.project-brand span {
+  font-weight: 400;
+}
+.project-header button {
+  min-height: 42px;
+  border: 1px solid #c6d2c8;
+  border-radius: 7px;
+  background: #f5f7f1;
+  color: #315b50;
+  padding: 8px 16px;
+  font:
+    600 12px/1.5 Inter,
+    sans-serif;
+  cursor: pointer;
+}
+.project-header button:hover {
+  background: #e8eee4;
+}
+.project-layout {
+  display: grid;
+  grid-template-columns: 215px minmax(0, 1fr);
+  gap: 65px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 58px 24px 80px;
+}
+.project-navigation {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  position: sticky;
+  top: 28px;
+  align-self: start;
+}
+.project-navigation a {
+  padding: 9px 13px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  color: #63776d;
+}
+.project-navigation a[aria-current='page'] {
+  background: #e7ecdf;
+  color: #315842;
+  font-weight: 650;
+}
+.project-navigation a:hover {
+  background: #edf0e8;
+}
+.project-article {
+  max-width: 760px;
+  min-width: 0;
+}
+.project-eyebrow {
+  margin: 0 0 12px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #7c8c7b;
+}
+.project-article h1 {
+  margin: 0 0 22px;
+  color: #254b3d;
+  font-size: clamp(30px, 4vw, 45px);
+  letter-spacing: -0.035em;
+  line-height: 1.18;
+  font-weight: 600;
+}
+.project-lead {
+  font-size: 18px;
+  line-height: 1.65;
+  color: #6a7c6e;
+  margin: 0 0 36px;
+}
+.project-section {
+  margin: 34px 0;
+}
+.project-section h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #365843;
+}
+.project-section p {
+  margin: 12px 0;
+}
+.project-section li {
+  padding-left: 4px;
+  margin: 5px 0;
+}
+.project-section code {
+  border: 1px solid #dfe5d9;
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: #edf1e8;
+  font-size: 12px;
+}
+.project-revision {
+  overflow-wrap: anywhere;
+}
+.project-definitions {
+  display: grid;
+  grid-template-columns: 115px 1fr;
+  gap: 15px 20px;
+  margin: 22px 0;
+}
+.project-definitions dt {
+  font-weight: 650;
+  font-size: 11px;
+  padding-top: 4px;
+  color: #7a7a47;
+}
+.project-definitions dd {
+  margin: 0;
+}
+.project-release-version {
+  font-size: 12px;
+  color: #7e8c79;
+}
+.project-article > footer {
+  margin-top: 45px;
+  padding-top: 25px;
+  border-top: 1px solid #dbe1d8;
+  font-size: 11px;
+  color: #80917f;
+}
+@media (max-width: 767px) {
+  .project-header {
+    padding: 15px 18px;
+  }
+  .project-header .project-brand {
+    font-size: 12px;
+  }
+  .project-header button {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+  .project-layout {
+    display: block;
+    padding: 20px 22px 55px;
+  }
+  .project-navigation {
+    display: flex;
+    overflow-x: auto;
+    gap: 5px;
+    margin: 0 -5px 35px;
+    padding: 4px;
+    position: static;
+  }
+  .project-navigation a {
+    white-space: nowrap;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .project-article h1 {
+    font-size: 33px;
+  }
+  .project-lead {
+    font-size: 16px;
+  }
+  .project-section {
+    margin: 30px 0;
+  }
+  .project-section h2 {
+    font-size: 18px;
+  }
+  .project-definitions {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .project-definitions dd {
+    margin-bottom: 13px;
+  }
+}

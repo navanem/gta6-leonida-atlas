@@ -1,25 +1,44 @@
+import { readFile } from 'node:fs/promises';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import ProjectPage from '../../src/features/project/ProjectPage';
+import {
+  LEONIDA_ATLAS_RELEASES,
+  latestLeonidaAtlasRelease,
+} from '../../src/features/street-leonida/releases';
 
-import { LEONIDA_ATLAS_RELEASES, latestLeonidaAtlasRelease } from '../../src/features/street-leonida/releases';
-
-describe('Leonida Atlas release registry', () => {
-  it('publishes the first public releases in newest-first order', () => {
-    expect(LEONIDA_ATLAS_RELEASES.map((release) => release.version)).toEqual([
-      'v0.3.1',
-      'v0.3.0',
-      'v0.2.0',
-      'v0.1.0',
-    ]);
-    expect(latestLeonidaAtlasRelease.version).toBe('v0.3.1');
-    expect(LEONIDA_ATLAS_RELEASES.every((release) => release.date === '2026-09-05')).toBe(true);
+describe('Leonida Atlas current release', () => {
+  it('publishes only v0.5.0 across the registry, visible changelog and release documentation', async () => {
+    expect(LEONIDA_ATLAS_RELEASES).toHaveLength(1);
+    expect(latestLeonidaAtlasRelease).toMatchObject({
+      version: 'v0.5.0',
+      date: '2026-09-05',
+      status: 'public',
+    });
+    const markup = renderToStaticMarkup(
+      createElement(ProjectPage, { page: 'changelog', onClose: () => undefined }),
+    );
+    const documentation = await readFile(new URL('../../RELEASES.md', import.meta.url), 'utf8');
+    for (const output of [markup, documentation]) {
+      expect(output).toContain('v0.5.0');
+      expect(output).toContain('Released');
+      expect(output).not.toMatch(/\bv0\.[1-4]\.\d+\b/);
+      expect(output).not.toContain('local candidate; not pushed');
+    }
+    expect(markup).toContain(latestLeonidaAtlasRelease.title);
   });
 
-  it('keeps early release notes honest about uncertainty and source status', () => {
-    const notes = LEONIDA_ATLAS_RELEASES.flatMap((release) => release.highlights).join(' ');
+  it('retains source uncertainty and the limits of the executed browser verification', () => {
+    const notes = latestLeonidaAtlasRelease.highlights.join(' ');
     expect(notes).toContain('APPROXIMATE');
     expect(notes).toContain('UNKNOWN');
     expect(notes).toContain('GTADB');
-    expect(notes).not.toContain('official Rockstar map');
-    expect(notes).not.toContain('public GitHub release');
+    expect(notes).toContain('CC BY 4.0');
+    expect(notes).toContain('107 unpositioned');
+    const verification = latestLeonidaAtlasRelease.verification.join(' ');
+    expect(verification).toContain('17 browser cases');
+    expect(verification).toContain('WebKit');
+    expect(verification).toContain('explicitly skipped');
   });
 });

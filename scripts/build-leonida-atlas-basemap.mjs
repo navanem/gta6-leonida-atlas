@@ -3,7 +3,7 @@
  * node scripts/build-leonida-atlas-basemap.mjs
  * No network, new dependencies, inferred coastlines or authored road geometry.
  */
-import { createRequire } from 'node:module';
+import sharp from 'sharp';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,11 +17,6 @@ import {
 } from './lib/leonida-atlas-basemap.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-// Sharp is Astro's already-installed transitive image dependency.
-const requireFromAstro = createRequire(
-  createRequire(import.meta.url).resolve('astro/package.json'),
-);
-const sharp = requireFromAstro('sharp');
 sharp.concurrency(2);
 sharp.cache({ memory: 64, files: 0, items: 20 });
 const sourceDirectory = resolve(root, 'public/assets/street-leonida/maps/gtadb-yanis-16-z5');

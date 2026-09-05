@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
 
 import { REVIEWED_GTADB_ANCHORS } from './leonida-evidence';
@@ -196,7 +197,7 @@ function createLabelMaterial(
 function loadFacadeMaterials(): THREE.MeshStandardMaterial[] {
   const loader = new THREE.TextureLoader();
   return [0, 1, 2, 3].map((index) => {
-    const texture = loader.load('/assets/street-leonida/facades/ambrosia-company-town.webp');
+    const texture = loader.load(publicPath('assets/street-leonida/facades/ambrosia-company-town.webp'));
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -746,7 +747,7 @@ function addAgriculturalEdge(root: THREE.Group, coarsePointer: boolean): void {
   addInstances(fields, boxGeometry, material(0x332b20, 1), rowTransforms, 'ambrosia-cane-furrows');
 
   const caneTexture = new THREE.TextureLoader().load(
-    '/assets/street-leonida/vegetation/ambrosia-sugarcane.webp',
+    publicPath('assets/street-leonida/vegetation/ambrosia-sugarcane.webp'),
   );
   caneTexture.colorSpace = THREE.SRGBColorSpace;
   caneTexture.minFilter = THREE.LinearMipmapLinearFilter;

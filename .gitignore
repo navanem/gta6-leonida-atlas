@@ -9,3 +9,19 @@ test-results/
 coverage/
 .DS_Store
 
+
+# Local data, deployment credentials and generated verification artifacts
+.env.local
+.deploy-keys/
+*.pem
+*.key
+*.p12
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+backups/
+exports/
+leonida-atlas-backup-*.json
+.worktrees/
+.superpowers/

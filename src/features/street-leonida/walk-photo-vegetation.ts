@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
 
 import {
@@ -57,7 +58,7 @@ const NAMED_LOCATION_CLEARANCE = 5;
 const SPECIES: readonly SpeciesDefinition[] = [
   {
     name: 'royal-palm',
-    asset: '/assets/street-leonida/vegetation/royal-palm.webp',
+    asset: publicPath('assets/street-leonida/vegetation/royal-palm.webp'),
     seed: 0x70616c6d,
     minimumSpacing: 3.7,
     patches: [
@@ -126,7 +127,7 @@ const SPECIES: readonly SpeciesDefinition[] = [
   },
   {
     name: 'swamp-cypress',
-    asset: '/assets/street-leonida/vegetation/swamp-cypress.webp',
+    asset: publicPath('assets/street-leonida/vegetation/swamp-cypress.webp'),
     seed: 0x63797072,
     minimumSpacing: 3.25,
     patches: [
@@ -162,7 +163,7 @@ const SPECIES: readonly SpeciesDefinition[] = [
   },
   {
     name: 'southern-pine',
-    asset: '/assets/street-leonida/vegetation/southern-pine.webp',
+    asset: publicPath('assets/street-leonida/vegetation/southern-pine.webp'),
     seed: 0x70696e65,
     minimumSpacing: 3.7,
     patches: [

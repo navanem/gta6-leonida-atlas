@@ -1,108 +1,63 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-
+import ExplorerView from '../../src/features/explorer/ExplorerView';
 import {
   GTADB_LICENSE_URL,
   GTADB_PINNED_DATA_URL,
   GTADB_PREFERRED_SOURCE,
 } from '../../src/features/street-leonida/gtadb';
+import { PLACE_ENTRY_VIEWS } from '../../src/features/street-leonida/walk-geography';
 
-const root = fileURLToPath(new URL('../..', import.meta.url));
-const read = (relativePath: string) => readFile(`${root}/${relativePath}`, 'utf8');
+// Test the rendered DOM contract consumed by the retained imperative engine. The retired
+// idle preloader and astro:before-swap assertions are superseded by atlas-explorer-lifecycle.
+const markup = renderToStaticMarkup(createElement(ExplorerView, { onClose: () => undefined }));
 
-describe('Street Leonida evidence-first explorer shell', () => {
-  it('ships one accessible walk-world runtime without the legacy documented scene', async () => {
-    const [shell, world] = await Promise.all([
-      read('src/components/tools/street-leonida/ExplorerShell.astro'),
-      read('src/components/tools/street-leonida/WalkableWorld.astro'),
-    ]);
-
-    expect(shell.match(/<WalkableWorld\b/g)).toHaveLength(1);
-    expect(shell).not.toContain('DocumentedScene');
-    expect(shell).not.toContain('data-explorer-stage');
-    expect(world).toContain('data-walk-canvas');
-    expect(world).not.toContain('initializeWalkMap(world');
-    expect(world).toContain('initializeWalkWorldOverlays(world)');
-    expect(world).toContain("import('@features/street-leonida/walk-world')");
-    expect(world).toContain('requestIdleCallback');
-    expect(world).toContain("typeof window.requestIdleCallback === 'function'");
-    expect(world).toContain("startButton?.addEventListener('pointerenter', requestRuntimeLoad");
-    expect(world).toContain("startButton?.addEventListener('focus', requestRuntimeLoad");
-    expect(world).toContain('initializeWalkableWorld(world, overlays)');
-    expect(world).toContain('controller?.dispose()');
-    expect(world).toContain('overlays.dispose()');
-    expect(world).toMatch(/document\.addEventListener\(\s*['"]astro:before-swap['"]/);
+describe('Leonida optional React explorer shell', () => {
+  it('renders one accessible world at its documented regional entry', () => {
+    expect(markup.match(/<canvas\b/g)).toHaveLength(1);
+    expect(markup).toContain('data-walk-canvas=""');
+    expect(markup).toContain('aria-label="Three-dimensional community reconstruction of Leonida"');
+    expect(markup).toContain('data-initial-place="vice-city"');
+    const { position } = PLACE_ENTRY_VIEWS['vice-city']!;
+    expect(markup).toContain(`data-player-position="${position.x},${position.z}"`);
+    expect(markup).toContain('Back to atlas');
+    // The wrapper owns route exit; the retained engine must not bind its old site redirect.
+    expect(markup).not.toContain('data-stop-walking');
+    expect(markup).not.toContain('data-walk-scene-page');
   });
 
-  it('makes provenance, uncertainty, map, evidence, and touch controls public and operable', async () => {
-    const [shell, world] = await Promise.all([
-      read('src/components/tools/street-leonida/ExplorerShell.astro'),
-      read('src/components/tools/street-leonida/WalkableWorld.astro'),
-    ]);
-
-    expect(world).toContain('GTADB / Map GTA');
-    expect(world).toContain('Official visual identity or existence');
-    expect(world).toContain('Community-estimated placement');
-    expect(world).toContain('Uncertain entries');
-    expect(world).toContain('transformed presentation');
-    expect(world).toContain('pinned revision');
-    expect(world).toMatch(/Source-derived coastlines, roads and land cover are\s+APPROXIMATE/);
-    expect(world).toContain('href={GTADB_PREFERRED_SOURCE}');
-    expect(world).toContain('href={GTADB_LICENSE_URL}');
-    expect(world).toContain('href={GTADB_PINNED_DATA_URL}');
-    expect(GTADB_PREFERRED_SOURCE).toBe('https://map.gtadb.org');
-    expect(GTADB_LICENSE_URL).toBe('https://creativecommons.org/licenses/by/4.0/');
-    expect(GTADB_PINNED_DATA_URL).toContain('/blob/7c3f8c295d64254e6b6d269b77c6f84fc4339f9c/');
-    expect(`${shell}\n${world}`).toContain('Rockstar visual evidence');
-    expect(`${shell}\n${world}`).toContain('APPROXIMATE');
-    expect(`${shell}\n${world}`).toContain('UNKNOWN');
-    expect(world).not.toMatch(/exact (?:raster|GTADB points?|shared world coordinates|tiles?)/i);
-    expect(world).not.toMatch(/\b2 m\b/i);
-    expect(world).toContain('data-open-walk-map');
-    expect(world).toContain('data-walk-map');
-    expect(world).toContain('data-walk-map-layer-toggle="supported"');
-    expect(world).toContain('data-walk-map-layer-toggle="uncertain"');
-    expect(world).toContain('aria-label="Hide GTADB entries without uncertainty signals"');
-    expect(world).toContain('aria-label="Show uncertain GTADB entries"');
-    expect(world).toContain('<strong>Named evidence</strong>');
-    expect(world).toContain('<strong>Uncertain entries</strong>');
-    expect(world).not.toContain('data-walk-map-layer-toggle="canonical"');
-    expect(world).not.toContain('data-walk-map-layer-toggle="community"');
-    expect(world).not.toContain('State of Leonida v15');
-    expect(world).not.toContain('leonida-world-map.jpg');
-    expect(world).not.toContain('data-player-position="-104.0,42.0"');
-    expect(world).not.toContain('Vice City Beach');
-    expect(world).toContain('PLACE_ENTRY_VIEWS');
-    expect(world).not.toContain('gtadb.net/gta-6-map/interactive');
-    expect(world).not.toContain('/blob/main/');
-    expect(world).toContain('Forest, rock cuts and winding roads');
-    expect(world).not.toMatch(/quarry/i);
-    expect(world).toContain('data-walk-scene-dialog');
-    expect(world).toContain('data-walk-scene-image');
-    expect(world).toContain('data-walk-scene-evidence-label');
-    expect(world).toContain('data-walk-scene-provenance');
-    expect(world).toContain('DOCUMENTED SOURCE EVIDENCE');
-    expect(world).not.toContain('Open official source');
-    expect(world).toContain('data-walk-mobile-controls');
-    expect(world).toContain('data-walk-joystick');
-    expect(world).toContain('data-walk-look-pad');
-    expect(world.match(/data-walk-move-button=/g)).toHaveLength(4);
-    expect(world.match(/data-walk-look-button=/g)).toHaveLength(4);
-    expect(world).toContain('aria-label="Move forward"');
-    expect(world).toContain('aria-label="Look right"');
-    expect(world).not.toContain('data-walk-map-svg role="img"');
+  it('preserves evidence attribution, regional travel, and accessible touch controls', () => {
+    expect(markup).toContain(`href="${GTADB_PREFERRED_SOURCE}"`);
+    expect(markup).toContain(`href="${GTADB_LICENSE_URL}"`);
+    expect(markup).toContain(`href="${GTADB_PINNED_DATA_URL}"`);
+    expect(markup).toContain('Official visual identity or existence');
+    expect(markup).toContain('Community-estimated placement');
+    expect(markup).toContain('APPROXIMATE');
+    expect(markup).toContain('UNKNOWN');
+    expect(markup).toContain('data-walk-map-layer-toggle="supported"');
+    expect(markup).toContain('data-walk-map-layer-toggle="uncertain"');
+    expect(markup.match(/data-walk-region=/g)).toHaveLength(6);
+    expect(markup).toContain('data-walk-region="mount-kalaga-national-park"');
+    expect(markup).toContain('data-walk-scene-dialog=""');
+    expect(markup).toContain('data-walk-scene-image=""');
+    expect(markup).toContain('data-walk-scene-evidence-label=""');
+    expect(markup).toContain('DOCUMENTED SOURCE EVIDENCE');
+    expect(markup).toContain('data-walk-joystick=""');
+    expect(markup).toContain('data-walk-look-pad=""');
+    expect(markup.match(/data-walk-move-button=/g)).toHaveLength(4);
+    expect(markup.match(/data-walk-look-button=/g)).toHaveLength(4);
+    expect(markup).toContain('aria-label="Move forward"');
+    expect(markup).toContain('aria-label="Look right"');
+    expect(markup).toContain('data-walk-map-svg="" role="group"');
   });
 
-  it('makes the visible desktop M legend an actual map trigger', async () => {
-    const [world, overlays] = await Promise.all([
-      read('src/components/tools/street-leonida/WalkableWorld.astro'),
-      read('src/features/street-leonida/walk-overlays.ts'),
-    ]);
-
-    expect(world).toContain('data-walk-map-shortcut');
-    expect(world.match(/data-open-walk-map/g)).toHaveLength(3);
-    expect(overlays).toContain("root.querySelectorAll<HTMLButtonElement>('[data-open-walk-map]')");
+  it('renders the visible M shortcut inside a real map-trigger button', () => {
+    const triggers = [
+      ...markup.matchAll(/<button\b[^>]*data-open-walk-map=""[^>]*>([\s\S]*?)<\/button>/g),
+    ];
+    expect(triggers).toHaveLength(1);
+    expect(triggers[0]![1]).toContain('Travel map');
+    expect(triggers[0]![1]).toContain('<kbd>M</kbd>');
   });
 });

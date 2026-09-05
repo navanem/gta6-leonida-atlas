@@ -1,0 +1,39 @@
+# Independent Atlas service on an existing Traefik proxy network.
+# Supply instance values through an ignored env file; no CMS network or database.
+services:
+  atlas:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        ATLAS_BASE_PATH: '${ATLAS_ROUTE_PREFIX:?Set a path prefix without trailing slash}/'
+        VITE_ANALYTICS_ID: '${VITE_ANALYTICS_ID:-}'
+    image: '${ATLAS_IMAGE:-leonida-atlas:prod}'
+    container_name: leonida-atlas-web
+    restart: unless-stopped
+    networks:
+      - proxy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1:8080/index.html']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: '${ATLAS_PROXY_NETWORK:-proxy}'
+      traefik.http.routers.leonida-atlas.rule: 'Host(`${ATLAS_HOSTNAME:?Set the deployment hostname}`) && (Path(`${ATLAS_ROUTE_PREFIX}`) || PathPrefix(`${ATLAS_ROUTE_PREFIX}/`))'
+      traefik.http.routers.leonida-atlas.priority: '200'
+      traefik.http.routers.leonida-atlas.entrypoints: websecure
+      traefik.http.routers.leonida-atlas.tls.certresolver: '${ATLAS_TLS_RESOLVER:-letsencrypt}'
+      traefik.http.routers.leonida-atlas.service: leonida-atlas
+      traefik.http.routers.leonida-atlas.middlewares: leonida-atlas-slash,leonida-atlas-prefix,leonida-atlas-compress
+      traefik.http.middlewares.leonida-atlas-slash.redirectregex.regex: '^(https?://[^/?]+${ATLAS_ROUTE_PREFIX})([?].*)?$$'
+      traefik.http.middlewares.leonida-atlas-slash.redirectregex.replacement: '$${1}/$${2}'
+      traefik.http.middlewares.leonida-atlas-slash.redirectregex.permanent: 'true'
+      traefik.http.middlewares.leonida-atlas-prefix.stripprefix.prefixes: '${ATLAS_ROUTE_PREFIX}'
+      traefik.http.middlewares.leonida-atlas-compress.compress: 'true'
+      traefik.http.services.leonida-atlas.loadbalancer.server.port: '8080'
+networks:
+  proxy:
+    external: true
+    name: '${ATLAS_PROXY_NETWORK:-proxy}'

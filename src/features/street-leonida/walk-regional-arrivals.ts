@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
 
 import { gtadbToWorld } from './leonida-coordinates';
@@ -87,20 +88,20 @@ const PLACE_SLUGS: Readonly<Record<DetailedArrivalRegion, string>> = {
   'mount-kalaga': 'mount-kalaga-national-park',
 };
 
-const ASPHALT_ASSET = '/assets/street-leonida/textures/sunworn-asphalt.jpg';
-const GRASS_ASSET = '/assets/street-leonida/textures/subtropical-grass.jpg';
-const REGION_FACADE_ATLAS_ASSET = '/assets/street-leonida/facades/reference-led-facade-atlas.png';
+const ASPHALT_ASSET = publicPath('assets/street-leonida/textures/sunworn-asphalt.jpg');
+const GRASS_ASSET = publicPath('assets/street-leonida/textures/subtropical-grass.jpg');
+const REGION_FACADE_ATLAS_ASSET = publicPath('assets/street-leonida/facades/reference-led-facade-atlas.png');
 const REGION_SURFACE_ATLAS_ASSET =
-  '/assets/street-leonida/textures/reference-led-surface-atlas.png';
-const REGION_LIFE_ATLAS_ASSET = '/assets/street-leonida/sprites/reference-led-life-atlas.png';
+  publicPath('assets/street-leonida/textures/reference-led-surface-atlas.png');
+const REGION_LIFE_ATLAS_ASSET = publicPath('assets/street-leonida/sprites/reference-led-life-atlas.png');
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const MOUNT_ROAD_START_Z = 28;
 const MOUNT_ROAD_END_Z = -252;
 const PHOTO_VEGETATION_ASSETS = {
-  palm: '/assets/street-leonida/vegetation/royal-palm.webp',
-  cypress: '/assets/street-leonida/vegetation/swamp-cypress.webp',
-  pine: '/assets/street-leonida/vegetation/southern-pine.webp',
-  sugarcane: '/assets/street-leonida/vegetation/ambrosia-sugarcane.webp',
+  palm: publicPath('assets/street-leonida/vegetation/royal-palm.webp'),
+  cypress: publicPath('assets/street-leonida/vegetation/swamp-cypress.webp'),
+  pine: publicPath('assets/street-leonida/vegetation/southern-pine.webp'),
+  sugarcane: publicPath('assets/street-leonida/vegetation/ambrosia-sugarcane.webp'),
 } as const;
 
 function mountRoadPointAt(index: number, segmentCount: number): { x: number; z: number } {
@@ -3319,7 +3320,7 @@ function addAmbrosiaArrival(
     'ambrosia-arrival-processing-hall',
   );
   const facadeTexture = loadTexture(
-    '/assets/street-leonida/facades/ambrosia-company-town.webp',
+    publicPath('assets/street-leonida/facades/ambrosia-company-town.webp'),
     renderer,
   );
   facadeTexture.wrapS = THREE.ClampToEdgeWrapping;

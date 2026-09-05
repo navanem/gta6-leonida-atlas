@@ -1,11 +1,10 @@
 {
   "name": "gta6-leonida-atlas",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "private": false,
   "type": "module",
   "license": "AGPL-3.0-only",
-  "description": "Evidence-led, approximate community atlas and 3D explorer for GTA VI's Leonida.",
-  "homepage": "https://www.gta6state.com/gta6-leonida-atlas",
+  "description": "Standalone local-first community map and optional 3D explorer for Leonida.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/navanem/gta6-leonida-atlas.git"
@@ -14,11 +13,11 @@
     "url": "https://github.com/navanem/gta6-leonida-atlas/issues"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "start": "node ./dist/server/entry.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && astro check",
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && node scripts/finalize-build.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4330",
+    "start": "vite preview --host 127.0.0.1 --port 4330",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -26,34 +25,41 @@
     "test": "pnpm run test:unit",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "build:basemap": "node scripts/build-leonida-atlas-basemap.mjs"
+    "build:basemap": "node scripts/build-leonida-atlas-basemap.mjs",
+    "test:fork": "node scripts/test-fork.mjs"
   },
   "dependencies": {
-    "@astrojs/node": "11.1.4",
     "@fontsource/inter": "5.2.5",
     "@fontsource/oswald": "5.2.5",
-    "astro": "7.2.9",
-    "three": "0.185.1"
+    "dexie": "4.4.5",
+    "leaflet": "1.9.4",
+    "lucide-react": "^0.577.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.185.1",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.4",
     "@eslint/js": "9.39.2",
     "@playwright/test": "1.62.1",
-    "@tailwindcss/vite": "4.3.3",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "22.19.9",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
     "@types/three": "0.185.0",
+    "@vitejs/plugin-react": "6.1.1",
     "eslint": "9.39.2",
-    "eslint-plugin-astro": "1.3.1",
+    "fake-indexeddb": "^6.2.4",
     "prettier": "3.9.6",
-    "prettier-plugin-astro": "0.14.1",
-    "tailwindcss": "4.3.3",
+    "sharp": "^0.35.4",
     "tsx": "4.23.13",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.19.0",
+    "typescript-eslint": "8.69.0",
+    "vite": "8.2.2",
     "vitest": "4.1.11"
   },
   "engines": {
-    "node": ">=22",
+    "node": ">=22.12.0",
     "pnpm": ">=10"
   }
 }

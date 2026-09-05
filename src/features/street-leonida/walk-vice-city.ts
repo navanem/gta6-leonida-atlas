@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
 
 import type { AxisAlignedRectangle } from './walk-engine';
@@ -101,9 +102,9 @@ const ANCHORS = {
 } as const;
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
-const ASPHALT_ASSET = '/assets/street-leonida/textures/sunworn-asphalt.jpg';
-const LUXURY_FACADE_ASSET = '/assets/street-leonida/facades/luxury-tower-sunset.jpg';
-const REGION_FACADE_ATLAS_ASSET = '/assets/street-leonida/facades/reference-led-facade-atlas.png';
+const ASPHALT_ASSET = publicPath('assets/street-leonida/textures/sunworn-asphalt.jpg');
+const LUXURY_FACADE_ASSET = publicPath('assets/street-leonida/facades/luxury-tower-sunset.jpg');
+const REGION_FACADE_ATLAS_ASSET = publicPath('assets/street-leonida/facades/reference-led-facade-atlas.png');
 
 function makeSurfaceTexture(
   seed: number,

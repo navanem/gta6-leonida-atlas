@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import type { WalkPoint } from './walk-engine';
 import { GTADB_REVISION, GTADB_SOURCE } from './gtadb';
 import {
@@ -17,7 +18,7 @@ import {
 export const STATE_OF_LEONIDA_COMMUNITY_MAP = {
   sourceUrl: GTADB_SOURCE,
   localSource: 'gtadb-landmarks-7c3f8c2.json',
-  assetUrl: '/assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json',
+  assetUrl: publicPath('assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json'),
   version: GTADB_REVISION,
   versionDate: '2026-09-04',
   markerCount: 2198,

@@ -1,3 +1,4 @@
+import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
 
 import { gtadbToWorld, WORLD_METRES_PER_GTADB_UNIT, worldToGtadb } from './leonida-coordinates';
@@ -250,7 +251,7 @@ export function extractGtadbBuildingFootprints(
 }
 
 export function getGtadbTileUrl(tile: GtadbGroundTileAddress): string {
-  return `/assets/street-leonida/maps/gtadb-yanis-16-z5/${tile.z},${tile.y},${tile.x}.jpg`;
+  return publicPath(`assets/street-leonida/maps/gtadb-yanis-16-z5/${tile.z},${tile.y},${tile.x}.jpg`);
 }
 
 export function listGtadbGroundTiles(

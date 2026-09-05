@@ -29,8 +29,8 @@
     "test:fork": "node scripts/test-fork.mjs"
   },
   "dependencies": {
-    "@fontsource/inter": "5.2.5",
-    "@fontsource/oswald": "5.2.5",
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/oswald": "5.3.0",
     "dexie": "4.4.5",
     "leaflet": "1.9.4",
     "lucide-react": "^0.577.0",

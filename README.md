@@ -2,7 +2,7 @@
 
 A standalone, local-first interactive community map of GTA VI's Leonida. Explore the map, search public places, organize favorites and collections, write notes, and create personal markers without an account. The existing approximate 3D explorer remains available as an optional module.
 
-Current release: **v0.5.0 — 5 September 2026**. See the [release notes](RELEASES.md).
+Current release: **v0.6.0 — 5 September 2026**. See the [release notes](RELEASES.md).
 
 This is an independent fan project, not an official Rockstar map. Community positions are **APPROXIMATE**; missing geography remains **UNKNOWN**. The pinned public catalogue contains 2,198 GTADB records (2,091 positioned and 107 unpositioned), plus six regional entries. Unpositioned records remain searchable and never acquire invented coordinates.
 
@@ -52,7 +52,7 @@ src/features/street-leonida/  Preserved evidence, coordinate and 3D algorithms
 src/stores/              Scoped application state and serialized local writes
 src/db/                  IndexedDB repositories, upgrades, backup validation
 src/plugins/             Trusted internal module registry
-src/capabilities/        Optional user/auth/sync contracts and guest defaults
+src/capabilities/        Optional UI extension and isolated guest/account workspaces
 ```
 
 ## Local data and offline use
@@ -83,7 +83,11 @@ Register a `LayerDefinition` in `src/features/map/layers.ts` or through `atlasRe
 
 A stranger who forks, installs, builds and hosts this repository gets a functioning map, editor, local favorites/collections/notes/markers, and import/export. Auth and cloud sync are off. No user backend is deployed, no user database is created, no private endpoint is called, and no access to the official instance's users is granted.
 
-`AuthProvider`, `UserProvider`, `SyncProvider` and guest implementations live in `src/capabilities/providers.ts`. A private application entry may resolve a separately supplied capability factory; failures fall back to guest behavior. That private package/service, session handling, credentials, account UI and deployment configuration belong outside this public repository. Feature flags cannot grant backend authorization. Server credentials must never use a `VITE_` variable.
+The official deployment supplies a separate account panel: registration with email, a unique username and password; sign-in by email or username; profile/security controls; and explicit server backup save/restore. Email verification is currently disabled. A personal recovery key provides password recovery until email delivery is configured. Guest data is never automatically uploaded or merged on sign-in.
+
+`src/capabilities/extension.ts` defines the optional UI contract. At build time, an operator may set `ATLAS_PRIVATE_ENTRY` to an absolute path to a separately maintained React component. The default `GuestExtension` renders nothing and makes no request. The component receives guarded workspace-switch, export/import and deletion callbacks; the public core serializes transitions and keeps each account in a distinct IndexedDB database. The original guest database is preserved. Local namespaces prevent accidental mixing; server authorization remains essential.
+
+Private account code, session handling, server credentials and deployment configuration belong outside this public repository. `AuthProvider`, `UserProvider` and `SyncProvider` contracts remain available for other integrations. Feature flags cannot grant backend authorization. Server credentials must never use a `VITE_` variable.
 
 ## Google Analytics
 

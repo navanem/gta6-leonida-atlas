@@ -3,18 +3,24 @@ import { Download, Upload } from 'lucide-react';
 import type { Backup } from '../../domain/types';
 import { atlasRepository } from '../../db/repository';
 import { MAX_BACKUP_BYTES, parseBackup } from '../../db/backup';
-import { saveLocal, usePersistenceStore } from '../../stores/atlas';
+import {
+  exportWorkspaceBackup,
+  saveLocal,
+  usePersistenceStore,
+  useWorkspaceStore,
+} from '../../stores/atlas';
 import { Modal } from '../../app/Modal';
 
 export default function BackupDialog({ onClose }: { onClose: () => void }) {
   const ready = usePersistenceStore((s) => s.ready);
+  const workspaceId = useWorkspaceStore((s) => s.workspaceId);
   const [preview, setPreview] = useState<Backup | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   async function exportData() {
     try {
-      const backup = await atlasRepository.exportBackup();
+      const backup = await exportWorkspaceBackup(workspaceId);
       const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');

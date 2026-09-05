@@ -29,5 +29,8 @@ At refactor start, 303 tests / 32 files passed. The catalogue contained 2,198 GT
 ## Delivery constraints
 
 - Preserve Google Analytics → the user explicitly requested it → enable it only through ignored local/hosting configuration; isolate its script from personal application data.
-- Publication authorization updated → the user approved production publication, a GitHub push and the v0.5.0 release → release-facing files show only the current version; external results are recorded after verification.
-- No configured independent private user service → avoid inventing infrastructure → ship guest behavior and capability contracts; official account/session/sync integration remains external and optional.
+- Publication authorization updated → the user approved production publication, a GitHub push and a current release → release-facing files show only the current version; external results are recorded after verification.
+- Real accounts requested → deploy a dedicated private user service and panel on the existing host, outside the public repository; no CMS coupling or new paid/cloud resource.
+- Email + unique username + password → user requested no email confirmation for now; enforce normalized uniqueness on the server and provide personal recovery keys.
+- Separate local namespaces and explicit server backups → preserve guest work, prevent cross-account mixing, reject stale server revisions.
+- Selected map destination → carry the place ID and validated coordinates into the actual 3D spawn; retain documented approach offsets and the default entry only when no place is selected.

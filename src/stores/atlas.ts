@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 import type { Filters, LayerDefinition, Place, Position, UserData } from '../domain/types';
 import { EMPTY_USER_DATA } from '../domain/types';
-import { atlasRepository, ConflictError } from '../db/repository';
+import {
+  AtlasDatabase,
+  atlasRepository,
+  ConflictError,
+  replaceAtlasRepository,
+  workspaceDatabaseName,
+} from '../db/repository';
 import { atlasRegistry } from '../plugins/registry';
+import { parseBackup } from '../db/backup';
 
 export const DEFAULT_FILTERS: Filters = {
   query: '',
@@ -83,6 +90,11 @@ export const useUiStore = create<{
   setEditorOpen: (editorOpen) => set({ editorOpen }),
 }));
 export const useUserStore = create<UserData>(() => structuredClone(EMPTY_USER_DATA));
+export const useWorkspaceStore = create<{
+  workspaceId: string | null;
+  switching: boolean;
+  revision: number;
+}>(() => ({ workspaceId: null, switching: false, revision: 0 }));
 export const usePersistenceStore = create<{
   status: 'loading' | 'saved' | 'saving' | 'error';
   error: string;
@@ -95,12 +107,30 @@ export const usePersistenceStore = create<{
   ready: false,
 }));
 
+let generation = 0;
+let publication = 0;
 export async function hydrateUserData() {
+  if (useWorkspaceStore.getState().switching || pending) return;
+  const requestedGeneration = generation;
+  const requestedPublication = ++publication;
+  const repository = atlasRepository;
   try {
-    const data = await atlasRepository.load();
+    const data = await repository.load();
+    if (
+      requestedGeneration !== generation ||
+      requestedPublication !== publication ||
+      repository !== atlasRepository
+    )
+      return;
     useUserStore.setState(data);
     usePersistenceStore.setState({ status: 'saved', error: '', ready: true });
   } catch {
+    if (
+      requestedGeneration !== generation ||
+      requestedPublication !== publication ||
+      repository !== atlasRepository
+    )
+      return;
     usePersistenceStore.setState({
       status: 'error',
       ready: false,
@@ -111,16 +141,122 @@ export async function hydrateUserData() {
 }
 let writeQueue: Promise<unknown> = Promise.resolve();
 let pending = 0;
+
+/** Drain accepted writes before changing databases; never display a previous identity's data. */
+export function switchLocalWorkspace(workspaceId: string | null): Promise<void> {
+  const name = workspaceDatabaseName(workspaceId);
+  const current = useWorkspaceStore.getState();
+  if (
+    !current.switching &&
+    current.workspaceId === workspaceId &&
+    usePersistenceStore.getState().ready
+  )
+    return Promise.resolve();
+  const requestedGeneration = ++generation;
+  useWorkspaceStore.setState({ switching: true, revision: requestedGeneration });
+  usePersistenceStore.setState({ status: 'loading', ready: false, error: '' });
+  useUserStore.setState(structuredClone(EMPTY_USER_DATA));
+  useUiStore.setState({
+    dialog: null,
+    editorOpen: false,
+    filters: DEFAULT_FILTERS,
+    tab: 'explore',
+  });
+  useMapStore.setState({ selectedId: null, focus: null, editorMode: 'none', draftPosition: null });
+  const operation = writeQueue.then(async () => {
+    const previous = atlasRepository;
+    const repository = previous.name === name ? previous : new AtlasDatabase(name);
+    replaceAtlasRepository(repository);
+    if (previous !== repository) previous.close();
+    useWorkspaceStore.setState({ workspaceId });
+    try {
+      const data = await repository.load();
+      if (requestedGeneration !== generation) return;
+      useUserStore.setState(data);
+      useWorkspaceStore.setState({ switching: false });
+      usePersistenceStore.setState({ status: 'saved', ready: true, error: '' });
+    } catch (error) {
+      if (requestedGeneration === generation) {
+        useWorkspaceStore.setState({ switching: false });
+        usePersistenceStore.setState({
+          status: 'error',
+          ready: false,
+          error: 'Could not open this workspace. Check browser storage permissions and retry.',
+        });
+      }
+      throw error;
+    }
+  });
+  // A failed switch must not poison subsequent transitions or local writes.
+  writeQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+export async function deleteLocalWorkspace(workspaceId: string): Promise<void> {
+  const name = workspaceDatabaseName(workspaceId);
+  const operation = writeQueue.then(async () => {
+    if (name === atlasRepository.name) throw new Error('Cannot delete an active workspace.');
+    await new AtlasDatabase(name).delete();
+  });
+  writeQueue = operation.catch(() => undefined);
+  await operation;
+}
+
+function assertWorkspace(workspaceId: string | null, expectedGeneration: number): void {
+  const state = useWorkspaceStore.getState();
+  if (
+    state.switching ||
+    state.workspaceId !== workspaceId ||
+    generation !== expectedGeneration ||
+    !usePersistenceStore.getState().ready
+  )
+    throw new Error(
+      'The active workspace changed or is unavailable. Retry from the current account.',
+    );
+}
+
+export async function exportWorkspaceBackup(workspaceId: string | null) {
+  const expectedGeneration = generation;
+  assertWorkspace(workspaceId, expectedGeneration);
+  await writeQueue;
+  assertWorkspace(workspaceId, expectedGeneration);
+  const backup = await atlasRepository.exportBackup();
+  assertWorkspace(workspaceId, expectedGeneration);
+  return backup;
+}
+
+export async function importWorkspaceBackup(
+  workspaceId: string | null,
+  value: unknown,
+): Promise<void> {
+  const expectedGeneration = generation;
+  assertWorkspace(workspaceId, expectedGeneration);
+  const backup = parseBackup(value);
+  const saved = await saveLocal(async () => {
+    assertWorkspace(workspaceId, expectedGeneration);
+    await atlasRepository.importBackup(backup);
+  });
+  assertWorkspace(workspaceId, expectedGeneration);
+  if (!saved)
+    throw new Error(usePersistenceStore.getState().error || 'Could not import the backup.');
+}
+
 /** Serialize local writes; publish success only after the transaction and reload complete. */
 export function saveLocal(action: () => Promise<void>): Promise<boolean> {
+  if (useWorkspaceStore.getState().switching || !usePersistenceStore.getState().ready)
+    return Promise.resolve(false);
+  const requestedGeneration = generation;
+  const repository = atlasRepository;
+  publication++;
   pending++;
   usePersistenceStore.setState({ status: 'saving', error: '' });
   const operation = writeQueue.then(async () => {
     try {
       await action();
-      const data = await atlasRepository.load();
-      useUserStore.setState(data);
+      const data = await repository.load();
       pending--;
+      if (requestedGeneration !== generation) return false;
+      useUserStore.setState(data);
       usePersistenceStore.setState({
         status: pending ? 'saving' : 'saved',
         error: '',
@@ -130,6 +266,7 @@ export function saveLocal(action: () => Promise<void>): Promise<boolean> {
       return true;
     } catch (error) {
       pending--;
+      if (useWorkspaceStore.getState().switching) return false;
       usePersistenceStore.setState({
         status: 'error',
         error:

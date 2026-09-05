@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Place } from '../../domain/types';
 import { getLocalStreetPlaces, getLocalStreetViewpoints } from '../street-leonida/page-data';
-import { PLACE_ENTRY_VIEWS } from '../street-leonida/walk-geography';
 import {
   GTADB_LICENSE_URL,
   GTADB_PINNED_DATA_URL,
@@ -9,10 +9,13 @@ import {
 } from '../street-leonida/gtadb';
 import { mountExplorer } from './mount-explorer';
 import { projectPath } from './public-path';
+import { resolveExplorerEntry } from './initial-entry';
 import './explorer.css';
 
 export interface ExplorerViewProps {
   onClose: () => void;
+  initialPlace?: Place | null;
+  requestedPlaceId?: string | null;
 }
 
 const regions = getLocalStreetPlaces().items;
@@ -26,7 +29,6 @@ const scenes = getLocalStreetViewpoints().items.map((viewpoint) => ({
   source: viewpoint.source,
   labels: viewpoint.labels,
 }));
-const entry = PLACE_ENTRY_VIEWS['vice-city']!;
 
 function Attribution() {
   return (
@@ -48,8 +50,13 @@ function Attribution() {
 }
 
 /** Maintained DOM contract for the existing imperative Three.js reconstruction. */
-export default function ExplorerView({ onClose }: ExplorerViewProps) {
+export default function ExplorerView({
+  onClose,
+  initialPlace,
+  requestedPlaceId,
+}: ExplorerViewProps) {
   const worldRef = useRef<HTMLElement>(null);
+  const entry = resolveExplorerEntry(initialPlace);
   const [destinationsOpen, setDestinationsOpen] = useState(false);
   useEffect(() => {
     if (destinationsOpen)
@@ -80,8 +87,12 @@ export default function ExplorerView({ onClose }: ExplorerViewProps) {
         data-atlas-standalone="true"
         data-walk-active="false"
         data-walk-ready="false"
-        data-initial-place="vice-city"
-        data-initial-scene="0"
+        data-initial-place={entry.regionSlug}
+        data-initial-scene={Math.max(
+          0,
+          scenes.findIndex((scene) => scene.placeSlug === entry.regionSlug),
+        )}
+        data-initial-destination={entry.destination ? JSON.stringify(entry.destination) : undefined}
         data-player-position={`${entry.position.x},${entry.position.z}`}
         data-scenes={JSON.stringify(scenes)}
       >
@@ -124,7 +135,7 @@ export default function ExplorerView({ onClose }: ExplorerViewProps) {
           </button>
         </div>
         <div className="explorer-hud" data-walk-hud="">
-          <strong data-walk-zone="">Vice City</strong>
+          <strong data-walk-zone="">{entry.regionName}</strong>
           <span data-walk-zone-detail="">Approximate community reconstruction</span>
           <small data-walk-hud-coordinates="">GTADB frame</small>
           <b data-walk-heading="">N</b>
@@ -134,8 +145,14 @@ export default function ExplorerView({ onClose }: ExplorerViewProps) {
           data-atlas-arrival-notice=""
           role="status"
           aria-live="polite"
-          hidden
-        />
+          hidden={(!initialPlace && !requestedPlaceId) || Boolean(entry.destination)}
+        >
+          {initialPlace && !entry.destination
+            ? `${initialPlace.title} has no mapped position. The explorer starts in Vice City.`
+            : requestedPlaceId && !initialPlace
+              ? 'The selected place is unavailable in this browser. The explorer starts in Vice City.'
+              : ''}
+        </p>
         <div className="explorer-zoom" aria-label="Camera zoom">
           <button type="button" data-walk-zoom-in="" aria-label="Zoom camera in">
             +
@@ -253,7 +270,7 @@ export default function ExplorerView({ onClose }: ExplorerViewProps) {
                 </button>
               </div>
               <div className="explorer-map-pose">
-                <strong data-walk-map-live-region="">Vice City</strong>
+                <strong data-walk-map-live-region="">{entry.regionName}</strong>
                 <span data-walk-map-live-heading="">N</span>
                 <span data-walk-map-live-gtadb="">GTADB frame</span>
                 <span data-walk-map-live-world="" />

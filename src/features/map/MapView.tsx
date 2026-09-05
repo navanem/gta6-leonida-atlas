@@ -160,8 +160,12 @@ export default function MapView(props: MapViewProps) {
         observer?.disconnect();
         cancelAnimationFrame(resizeFrame);
         overlay.off();
-        activeMap.off();
+        activeMap.off('moveend zoomend', reportViewport);
+        // Leaflet 1.9's uncancellable 250ms zoom fallback can outlive remove().
+        // Clear its guard before the map pane is deleted; preserve internal unload cleanup.
+        (activeMap as L.Map & { _animatingZoom?: boolean })._animatingZoom = false;
         activeMap.remove();
+        activeMap.off();
       };
     } catch (error) {
       observer?.disconnect();

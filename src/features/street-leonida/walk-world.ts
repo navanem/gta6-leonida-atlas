@@ -92,6 +92,18 @@ export function parseWalkMapTravelDetail(value: unknown): WalkMapTravelDetail | 
   };
 }
 
+/** The React handoff uses the same validated destination contract as travel inside the explorer. */
+export function parseInitialWalkDestination(
+  serialized: string | undefined,
+): WalkMapTravelDetail | null {
+  if (!serialized) return null;
+  try {
+    return parseWalkMapTravelDetail(JSON.parse(serialized));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Keep a direct map arrival visually tied to the selected evidence point.
  * When collision clearance moves the player away from the documented point,
@@ -1288,7 +1300,9 @@ export function initializeWalkableWorld(
   const initialEntryView =
     PLACE_ENTRY_VIEWS[root.dataset.initialPlace ?? ''] ??
     (initialHotspot ? PLACE_ENTRY_VIEWS[initialHotspot.scene.placeSlug] : undefined);
+  const initialDestination = parseInitialWalkDestination(root.dataset.initialDestination);
   const preferredInitialPosition: WalkPoint =
+    initialDestination ??
     initialEntryView?.position ??
     (initialHotspot
       ? {
@@ -2027,6 +2041,9 @@ export function initializeWalkableWorld(
     animationFrameId = requestAnimationFrame(animate);
   }
 
+  // Apply the selected destination to the player itself, including the established clearance
+  // and documented approach behavior; the region's default is only used without a destination.
+  if (initialDestination) teleportToMapDestination(initialDestination);
   root.dataset.walkReady = 'true';
   overlays.markThreeDimensionalReady();
   dom.loading?.setAttribute('hidden', '');

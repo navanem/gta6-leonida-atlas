@@ -42,9 +42,15 @@ The source, layer and filter registries feed the core. `registerFilter({id,match
 
 ## Optional private users
 
-Public capabilities contain only interfaces and guest/no-sync behavior. An official private entry can call `resolveCapabilities(privateFactory)` and compose its own account panel around the same public core. A failing factory resolves to guest. The private service must own authentication, sessions, authorization, rate limits and per-user sync isolation. Never assume hiding a button protects an API.
+The build alias `virtual:atlas-account` resolves to an empty public component by default. Operators can set the process environment variable `ATLAS_PRIVATE_ENTRY` to a private React entry implementing `AccountExtensionProps`. No configured endpoint, account service or private UI is bundled into a default fork. React and React DOM are deduplicated across the core and extension.
 
-Private sync must export a validated local backup and validate received data before transactional merging. Cloud failure must leave local work intact. The public repository contains neither such a backend nor configured endpoints; its cloud/account UI stays absent. No automatic infrastructure provisioning occurs.
+The controller is mounted once beside the application across all routes. Its `entryTarget` is a route-owned sidebar slot; private implementations portal only their entry button, keeping session listeners and dialogs mounted during 3D navigation.
+
+The extension receives `workspaceId`, `workspaceReady`, and guarded `switchWorkspace`, `deleteWorkspace`, `exportBackup` and `importBackup` callbacks. A transition immediately hides the previous snapshot and closes its drafts; accepted writes finish in their original database before the next namespace opens. Old read completions cannot overwrite a newer save or another account. Saves finishing during a transition suppress callbacks from the previous UI. Deletion uses the same queue and refuses the active database. Guest data remains in `leonida-atlas`; account namespaces use validated opaque IDs.
+
+The private service owns registration, sessions, authorization, rate limits, recovery and per-user backup isolation. The official panel uses explicit save/restore with server revision checks, not automatic conflict-prone upload. Both directions validate the backup schema. Its authenticated requests bind the expected account ID to the current server session; stale tabs cannot save one account's snapshot into another account. No server secret belongs in a `VITE_` variable.
+
+The extension must refresh session identity after login/logout or cross-tab changes and reject stale asynchronous results. It must treat local namespace separation as UI/data integrity, not an authorization boundary against scripts running in the same origin. Server failure must preserve local work and leave the public map usable.
 
 ## Migration inventory
 

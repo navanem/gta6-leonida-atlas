@@ -4,6 +4,7 @@ import { loadCatalogue, markerToPlace } from '../data/catalogue';
 import { filterPlaces } from '../domain/filter';
 import { DEFAULT_LAYERS } from '../features/map/layers';
 import MapView from '../features/map/MapView';
+import { explorerPath } from '../features/explorer/public-path';
 import { atlasRegistry } from '../plugins/registry';
 import {
   hydrateUserData,
@@ -12,6 +13,7 @@ import {
   usePersistenceStore,
   useUiStore,
   useUserStore,
+  useWorkspaceStore,
 } from '../stores/atlas';
 import { Sidebar } from './Sidebar';
 import { resolveRoute } from './routes';
@@ -25,8 +27,11 @@ const ExplorerView = lazy(() => import('../features/explorer/ExplorerView'));
 const ProjectPage = lazy(() => import('../features/project/ProjectPage'));
 
 let cataloguePromise: ReturnType<typeof loadCatalogue> | undefined;
-for (const layer of DEFAULT_LAYERS) atlasRegistry.registerLayer(layer);
-atlasRegistry.registerDataSource({ id: 'public', load: loadCatalogue });
+for (const layer of DEFAULT_LAYERS) {
+  if (!atlasRegistry.layers.has(layer.id)) atlasRegistry.registerLayer(layer);
+}
+if (!atlasRegistry.sources.has('public'))
+  atlasRegistry.registerDataSource({ id: 'public', load: loadCatalogue });
 
 export default function App() {
   const [route, setRoute] = useState(() => resolveRoute(location.pathname, location.search));
@@ -48,6 +53,8 @@ export default function App() {
   const editorMode = useMapStore((s) => s.editorMode);
   const draftPosition = useMapStore((s) => s.draftPosition);
   const ready = usePersistenceStore((s) => s.ready);
+  const persistenceLoading = usePersistenceStore((s) => s.status === 'loading');
+  const workspaceRevision = useWorkspaceStore((s) => s.revision);
   const allPlaces = useMemo(() => [...places, ...markers.map(markerToPlace)], [places, markers]);
   const deferredQuery = useDeferredValue(filters.query);
   const filtered = useMemo(
@@ -91,8 +98,7 @@ export default function App() {
     setRoute(resolveRoute(location.pathname, location.search));
   }, []);
   function navigate(view: '3d' | 'about') {
-    const url =
-      view === '3d' ? `${import.meta.env.BASE_URL}?view=3d` : `${import.meta.env.BASE_URL}about`;
+    const url = view === '3d' ? explorerPath(selected?.id) : `${import.meta.env.BASE_URL}about`;
     history.pushState({}, '', url);
     setRoute(resolveRoute(location.pathname, location.search));
   }
@@ -138,10 +144,21 @@ export default function App() {
     document.addEventListener('keydown', keyboard);
     const channel =
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('leonida-atlas-local') : null;
-    channel?.addEventListener('message', () => {
-      if (usePersistenceStore.getState().status !== 'saving') void hydrateUserData();
+    channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
+      const data = event.data;
+      const ownWorkspace = useWorkspaceStore.getState().workspaceId;
+      const matches =
+        data === 'saved'
+          ? ownWorkspace === null
+          : typeof data === 'object' &&
+            data !== null &&
+            'workspaceId' in data &&
+            data.workspaceId === ownWorkspace;
+      if (matches && usePersistenceStore.getState().status !== 'saving') void hydrateUserData();
     });
-    const unlisten = atlasRegistry.on('saved', () => channel?.postMessage('saved'));
+    const unlisten = atlasRegistry.on('saved', () =>
+      channel?.postMessage({ workspaceId: useWorkspaceStore.getState().workspaceId }),
+    );
     return () => {
       window.removeEventListener('online', network);
       window.removeEventListener('offline', network);
@@ -160,12 +177,22 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.reducedMotion = String(preferences.reducedMotion);
   }, [preferences.reducedMotion]);
-  if (route.view === 'explorer')
+  if (route.view === 'explorer') {
+    const initialPlace = allPlaces.find((place) => place.id === route.placeId);
+    // Deep links must wait for the catalogue/local hydration before choosing a spawn.
+    if (route.placeId && !initialPlace && (status === 'loading' || persistenceLoading))
+      return <div className="full-loading">Opening selected place in 3D…</div>;
     return (
       <Suspense fallback={<div className="full-loading">Opening 3D explorer…</div>}>
-        <ExplorerView onClose={goMap} />
+        <ExplorerView
+          key={`${route.placeId ?? 'default'}:${workspaceRevision}`}
+          initialPlace={initialPlace}
+          requestedPlaceId={route.placeId}
+          onClose={goMap}
+        />
       </Suspense>
     );
+  }
   if (route.view === 'project')
     return (
       <Suspense fallback={<div className="full-loading">Loading project information…</div>}>

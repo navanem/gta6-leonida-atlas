@@ -16,6 +16,7 @@ import type { Category, Place } from '../domain/types';
 import { useDomainStore, useMapStore, useUiStore } from '../stores/atlas';
 import { SavedPlaces } from '../features/library/SavedPlaces';
 import { Status } from './Status';
+import { setAccountEntryTarget } from '../capabilities/extension-host';
 
 export const CATEGORIES: { id: Category | 'all'; name: string }[] = [
   { id: 'all', name: 'All places' },
@@ -269,6 +270,7 @@ export function Sidebar({ places }: { places: Place[] }) {
         )}
       </div>
       <footer className="sidebar-footer">
+        <div ref={setAccountEntryTarget} data-atlas-account-slot />
         <Status />
         <div className="button-row">
           <button className="button" onClick={() => useUiStore.getState().setDialog('settings')}>

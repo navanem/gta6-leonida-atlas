@@ -5,6 +5,7 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/oswald/500.css';
 import App from './app/App';
+import { AccountExtension } from './capabilities/AccountExtension';
 import { initializeAnalytics } from './app/analytics';
 import './app/atlas.css';
 
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      <AccountExtension />
     </ErrorBoundary>
   </StrictMode>,
 );

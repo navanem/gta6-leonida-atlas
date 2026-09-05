@@ -515,3 +515,37 @@ test('notes saved offline remain available after reconnecting and reloading', as
     'Saved while the connection was unavailable.',
   );
 });
+
+test('3D explorer spawns at the selected Ambrosia position instead of Vice City', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== 'chromium',
+    'World-spawn verification uses the Chromium WebGL renderer.',
+  );
+  test.setTimeout(90_000);
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await openAtlas(page);
+  await selectRegion(page, 'Ambrosia');
+  await page.getByRole('button', { name: '3D explorer', exact: true }).click();
+  await expect(page).toHaveURL(/view=3d&place=region%3Aambrosia/);
+  const world = page.locator('[data-walk-world]');
+  await expect(world).toHaveAttribute('data-walk-runtime', 'ready', { timeout: 60_000 });
+  await expect(world).toHaveAttribute('data-walk-map-travel-id', 'region:ambrosia');
+  const spawn = await world.evaluate((element) => {
+    const root = element as HTMLElement;
+    const destination = JSON.parse(root.dataset.initialDestination!);
+    return { x: Number(root.dataset.playerX), z: Number(root.dataset.playerZ), destination };
+  });
+  expect(Math.hypot(spawn.x - spawn.destination.x, spawn.z - spawn.destination.z)).toBeLessThan(75);
+  expect(Math.hypot(spawn.x + 849.814, spawn.z - 651.22)).toBeGreaterThan(1000);
+  await expect(page.locator('[data-atlas-arrival-notice]')).toContainText('Ambrosia');
+  await page.getByRole('button', { name: 'Back to atlas', exact: true }).click();
+  await selectRegion(page, 'Leonida Keys');
+  await page.getByRole('button', { name: '3D explorer', exact: true }).click();
+  await expect(world).toHaveAttribute('data-walk-runtime', 'ready', { timeout: 60_000 });
+  await expect(world).toHaveAttribute('data-walk-map-travel-id', 'region:leonida-keys');
+  expect(pageErrors).toEqual([]);
+});

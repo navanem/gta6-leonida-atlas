@@ -6,7 +6,11 @@ export default defineConfig({
   base: process.env.ATLAS_BASE_PATH || '/',
   plugins: [react()],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
+      'virtual:atlas-account':
+        process.env.ATLAS_PRIVATE_ENTRY ||
+        fileURLToPath(new URL('./src/capabilities/GuestExtension.tsx', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@features': fileURLToPath(new URL('./src/features', import.meta.url)),
       '@lib': fileURLToPath(new URL('./src/lib', import.meta.url)),

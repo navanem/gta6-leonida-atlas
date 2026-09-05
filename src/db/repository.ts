@@ -338,4 +338,15 @@ export class AtlasDatabase extends Dexie {
   }
 }
 
-export const atlasRepository = new AtlasDatabase();
+// A live binding lets existing local operations use the selected namespace.
+// Only the store's serialized workspace transition may replace it.
+export let atlasRepository = new AtlasDatabase();
+export function replaceAtlasRepository(repository: AtlasDatabase): void {
+  atlasRepository = repository;
+}
+
+export function workspaceDatabaseName(workspaceId: string | null): string {
+  if (workspaceId === null) return 'leonida-atlas';
+  if (!/^[A-Za-z0-9_-]{1,200}$/.test(workspaceId)) throw new Error('Invalid workspace identifier.');
+  return `leonida-atlas-workspace-${workspaceId}`;
+}

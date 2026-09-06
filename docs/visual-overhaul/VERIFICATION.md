@@ -1,6 +1,8 @@
 # Visual overhaul verification — v0.7.0
 
-Validation date: **6 September 2026**. These captures show the running Atlas release candidate. Publication and live verification are tracked separately in the [implementation plan](../superpowers/plans/2026-09-06-atlas-visual-overhaul.md).
+Validation date: **6 September 2026**. Version **0.7.0 is deployed** at [the official Leonida Atlas](https://gta6state.com/gta6-leonida-atlas/). The public pull request passed GitHub checks before integration. These captures show the same application code used by the tested official image.
+
+Live checks confirmed that the served HTML and entry JavaScript match the tested image, the anonymous account-session endpoint responds correctly, and the deployment-only Analytics configuration is retained. The account-service and parent-site containers were unchanged; parent-site response hashes were also unchanged. Live Chromium subsequently rendered Vice City in both directions and Ambrosia without reported errors. About displayed v0.7.0 and all retained releases from v0.5.0; registration fields and consent controls were present. No account was created and no tracking consent was accepted during these checks.
 
 ## What was verified
 
@@ -73,4 +75,4 @@ This is a community reconstruction. The original game's production assets and me
 
 Cartographic context retains attribution to **GTADB / Map GTA, yanis,16, CC BY 4.0**. Rockstar visual references inform appearance; these captures show Atlas geometry and existing project materials, not rendered game assets. Existing licensing and source information remain in [third-party licenses](../../THIRD_PARTY_LICENSES.md), [map attribution](../../public/assets/gta6-leonida-atlas/ATTRIBUTION.md) and the explorer's Evidence view.
 
-Physical mobile GPU performance and a broad cross-browser visual sweep remain unverified. Publication and live verification are tracked in the delivery checklist.
+Physical mobile GPU performance and a broad cross-browser visual sweep remain unverified. The [delivery checklist](../superpowers/plans/2026-09-06-atlas-visual-overhaul.md) records the completed work.

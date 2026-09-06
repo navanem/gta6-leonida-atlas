@@ -82,6 +82,8 @@ Files: `walk-regional-arrivals.ts`, `walk-world.ts`, `walk-atmosphere.ts`, `walk
 - [ ] Complete and record the separate mobile/touch browser pass; desktop software rendering does not establish physical mobile GPU performance.
 - [x] Run typecheck, lint, all unit tests, build and relevant browser tests. Record bounded renderer/performance evidence with the SwiftShader limitation.
 - [x] Have an independent reviewer inspect final changes and visual comparisons; address actionable findings.
-- [ ] Update version/release notes and actual screenshots only after validation, integrate through the repository's current GitHub checks, deploy the tested official build with private configuration preserved, and verify the live result.
+- [x] Update version/release notes and actual screenshots only after validation, integrate through the repository's current GitHub checks, deploy the tested official build with private configuration preserved, and verify the live result.
 
 Verification evidence: [visual-overhaul/VERIFICATION.md](../../visual-overhaul/VERIFICATION.md). Publication/live verification remains unchecked until the tested build is deployed and checked.
+
+Deployment verification (2026-09-06): official v0.7.0 image healthy; live HTML and entry JavaScript match the tested image. Accounts and parent-site container identities, parent response hashes and deployment Analytics configuration are preserved. Live Chromium, About/release history and registration-form checks passed. See [verification](../../visual-overhaul/VERIFICATION.md).

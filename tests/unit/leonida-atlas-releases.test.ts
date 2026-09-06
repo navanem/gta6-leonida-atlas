@@ -11,13 +11,14 @@ import {
 describe('Leonida Atlas release history', () => {
   it('retains every release since v0.5.0 in newest-first order across the changelog and documentation', async () => {
     expect(LEONIDA_ATLAS_RELEASES.map((release) => release.version)).toEqual([
+      'v0.6.2',
       'v0.6.1',
       'v0.6.0',
       'v0.5.0',
     ]);
     expect(latestLeonidaAtlasRelease).toMatchObject({
-      version: 'v0.6.1',
-      date: '2026-09-05',
+      version: 'v0.6.2',
+      date: '2026-09-06',
       status: 'public',
     });
     const markup = renderToStaticMarkup(
@@ -25,7 +26,8 @@ describe('Leonida Atlas release history', () => {
     );
     const documentation = await readFile(new URL('../../RELEASES.md', import.meta.url), 'utf8');
     for (const output of [markup, documentation]) {
-      for (const version of ['v0.6.1', 'v0.6.0', 'v0.5.0']) expect(output).toContain(version);
+      for (const version of ['v0.6.2', 'v0.6.1', 'v0.6.0', 'v0.5.0'])
+        expect(output).toContain(version);
       expect(output).toContain('Released');
       expect(output).not.toMatch(/\bv0\.[1-4]\.\d+\b/);
       expect(output).not.toContain('local candidate; not pushed');

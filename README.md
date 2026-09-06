@@ -2,7 +2,7 @@
 
 A standalone, local-first interactive community map of GTA VI's Leonida. Explore the map, search public places, organize favorites and collections, write notes, and create personal markers without an account. The existing approximate 3D explorer remains available as an optional module.
 
-Current release: **v0.6.1 — 5 September 2026**. See the [release notes](RELEASES.md). About and Changelog retain every release from v0.5.0 onward.
+Current release: **v0.6.2 — 6 September 2026**. See the [release notes](RELEASES.md). About and Changelog retain every release from v0.5.0 onward.
 
 This is an independent fan project, not an official Rockstar map. Community positions are **APPROXIMATE**; missing geography remains **UNKNOWN**. The pinned public catalogue contains 2,198 GTADB records (2,091 positioned and 107 unpositioned), plus six regional entries. Unpositioned records remain searchable and never acquire invented coordinates.
 

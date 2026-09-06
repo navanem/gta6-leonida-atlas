@@ -11,6 +11,26 @@ export interface LeonidaAtlasRelease {
 /** Retained public history starts at v0.5.0; the newest release stays first. */
 export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
   {
+    version: 'v0.6.2',
+    date: '2026-09-06',
+    title: 'Public collaboration and security hardening',
+    summary:
+      'Community contribution workflows, protected pull requests, validated dependency updates and continuous security scanning.',
+    status: 'public',
+    highlights: [
+      'The public repository now includes contribution guidelines, a code of conduct, issue forms, a pull-request template and private vulnerability reporting.',
+      'The main branch requires a successful Quality check and resolved conversations, keeps linear history, and blocks force pushes and branch deletion.',
+      'Dependabot groups compatible updates, keeps Node type definitions on Node 22 and avoids unrelated lockfile downgrades.',
+      'GitHub Actions use pinned revisions and read-only default permissions. Secret scanning, push protection and CodeQL continuously inspect the repository.',
+      'Public map data, coordinates, licensing, account boundaries and local-first behavior are unchanged.',
+    ],
+    verification: [
+      'Frozen installation, strict TypeScript, lint, 458 unit/integration tests and the production build passed.',
+      'The Chromium browser suite passed after the public collaboration and dependency updates.',
+      'CodeQL completed both analyses with no findings. GitHub reported no unresolved secrets or dependency vulnerabilities, and Git integrity checks found no corruption.',
+    ],
+  },
+  {
     version: 'v0.6.1',
     date: '2026-09-05',
     title: 'Visitor measurement and release history',

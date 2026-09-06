@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createWalkOutdoorEnvironment } from './walk-outdoor-lighting';
 
 import {
   collidesWithBuildings,
@@ -232,7 +232,10 @@ export function resolveTouchJoystickInput(
   const scale = magnitude > radius ? radius / magnitude : 1;
   const knob = { x: offsetX * scale, y: offsetY * scale };
   return {
-    axes: normalizeMovementAxes({ right: knob.x / radius, forward: -knob.y / radius }),
+    axes: normalizeMovementAxes({
+      right: knob.x / radius,
+      forward: -knob.y / radius,
+    }),
     intensity,
     knob,
     running: intensity >= TOUCH_JOYSTICK_RUN_THRESHOLD,
@@ -246,9 +249,9 @@ export const WALK_WORLD_RENDER_CONFIG = Object.freeze({
   desktopPixelBudget: 4_500_000,
   mobilePixelBudget: 1_600_000,
   telemetryIntervalMs: 100,
-  desktopCartographyTileRadius: 1,
-  mobileCartographyTileRadius: 1,
-  environmentIntensity: 0.42,
+  desktopCartographyTileRadius: 3,
+  mobileCartographyTileRadius: 2,
+  environmentIntensity: 0.75,
   toneMappingExposure: 0.94,
   shadowFilter: 'pcf',
   shadowMapSize: 1_024,
@@ -429,7 +432,10 @@ export function resolveWalkScenePositions(
     if (!anchor || !PLACE_ENTRY_VIEWS[scene.placeSlug]) return null;
     const count = placeCounts.get(scene.placeSlug) ?? 0;
     placeCounts.set(scene.placeSlug, count + 1);
-    const offset = PLACE_OFFSETS[count % PLACE_OFFSETS.length] ?? { x: 0, z: 0 };
+    const offset = PLACE_OFFSETS[count % PLACE_OFFSETS.length] ?? {
+      x: 0,
+      z: 0,
+    };
     return { x: anchor.x + offset.x, z: anchor.z + offset.z };
   });
 }
@@ -505,7 +511,11 @@ export function adjustArrivalForCollisions(
   documentedTarget: WalkPoint,
   collisions: readonly AxisAlignedRectangle[],
 ):
-  | { readonly position: WalkPoint; readonly adjusted: false; readonly offsetMetres: 0 }
+  | {
+      readonly position: WalkPoint;
+      readonly adjusted: false;
+      readonly offsetMetres: 0;
+    }
   | {
       readonly position: WalkPoint;
       readonly adjusted: true;
@@ -519,7 +529,11 @@ export function adjustArrivalForCollisions(
   const isSafe = (candidate: WalkPoint) =>
     !collidesWithBuildings(candidate, radius, finiteCollisions);
   if (isSafe(documentedTarget)) {
-    return { position: { ...documentedTarget }, adjusted: false, offsetMetres: 0 };
+    return {
+      position: { ...documentedTarget },
+      adjusted: false,
+      offsetMetres: 0,
+    };
   }
 
   for (let offsetMetres = 1; offsetMetres <= 24; offsetMetres += 1) {
@@ -667,7 +681,10 @@ function addViceCityBeachDetails(
   collisions: AxisAlignedRectangle[],
   reducedDensity: boolean,
 ): void {
-  const timber = new THREE.MeshStandardMaterial({ color: 0xd6b17d, roughness: 0.92 });
+  const timber = new THREE.MeshStandardMaterial({
+    color: 0xd6b17d,
+    roughness: 0.92,
+  });
   const pastel = [0xf26da7, 0x4fd7e8].map(
     (color) =>
       new THREE.MeshStandardMaterial({
@@ -677,7 +694,10 @@ function addViceCityBeachDetails(
         roughness: 0.68,
       }),
   );
-  const roofMaterial = new THREE.MeshStandardMaterial({ color: 0xf5ead7, roughness: 0.82 });
+  const roofMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf5ead7,
+    roughness: 0.82,
+  });
 
   const towerZ = reducedDensity ? [26] : [26, 82];
   towerZ.forEach((z, towerIndex) => {
@@ -698,7 +718,10 @@ function addViceCityBeachDetails(
     side: THREE.DoubleSide,
     roughness: 0.8,
   });
-  const poleMaterial = new THREE.MeshStandardMaterial({ color: 0xe7dfce, roughness: 0.75 });
+  const poleMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe7dfce,
+    roughness: 0.75,
+  });
   const umbrellaCount = reducedDensity ? 4 : 8;
   for (let index = 0; index < umbrellaCount; index += 1) {
     const z = 3 + index * (96 / Math.max(1, umbrellaCount - 1));
@@ -736,11 +759,17 @@ function addKeysDetails(
   addBox(scene, [35, 0.05, 7], [29, 0.18, 176], shallowMaterial, 0.2);
   if (!reducedDensity) addBox(scene, [26, 0.05, 6], [48, 0.18, 192], shallowMaterial, -0.3);
 
-  const wood = new THREE.MeshStandardMaterial({ color: 0x8b6644, roughness: 0.96 });
+  const wood = new THREE.MeshStandardMaterial({
+    color: 0x8b6644,
+    roughness: 0.96,
+  });
   const wallMaterials = [0x73c7be, 0xf0a36c].map(
     (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.86 }),
   );
-  const roof = new THREE.MeshStandardMaterial({ color: 0x69584e, roughness: 1 });
+  const roof = new THREE.MeshStandardMaterial({
+    color: 0x69584e,
+    roughness: 1,
+  });
   const cabinPositions = reducedDensity
     ? ([[55, 171]] as const)
     : ([
@@ -789,7 +818,10 @@ function addGrassriversDetails(scene: THREE.Scene, reducedDensity: boolean): voi
   if (!reducedDensity) addBox(scene, [47, 0.06, 4.5], [-3, 0.26, 133], water, 0.52);
 
   const reedGeometry = new THREE.CylinderGeometry(0.035, 0.06, 1.35, 5);
-  const reedMaterial = new THREE.MeshStandardMaterial({ color: 0x718340, roughness: 1 });
+  const reedMaterial = new THREE.MeshStandardMaterial({
+    color: 0x718340,
+    roughness: 1,
+  });
   const reedCount = reducedDensity ? 42 : 90;
   const reeds = new THREE.InstancedMesh(reedGeometry, reedMaterial, reedCount);
   const dummy = new THREE.Object3D();
@@ -810,7 +842,10 @@ function addGrassriversDetails(scene: THREE.Scene, reducedDensity: boolean): voi
   reeds.instanceMatrix.needsUpdate = true;
   scene.add(reeds);
 
-  const gatorMaterial = new THREE.MeshStandardMaterial({ color: 0x344b32, roughness: 1 });
+  const gatorMaterial = new THREE.MeshStandardMaterial({
+    color: 0x344b32,
+    roughness: 1,
+  });
   const gatorPositions = reducedDensity
     ? ([[65, 145]] as const)
     : ([
@@ -831,13 +866,21 @@ function addGrassriversDetails(scene: THREE.Scene, reducedDensity: boolean): voi
     scene,
     [4.8, 0.45, 2.25],
     [-15, 0.54, 137],
-    new THREE.MeshStandardMaterial({ color: 0x826744, metalness: 0.18, roughness: 0.68 }),
+    new THREE.MeshStandardMaterial({
+      color: 0x826744,
+      metalness: 0.18,
+      roughness: 0.68,
+    }),
     0.34,
   );
   airboatHull.castShadow = false;
   const cage = new THREE.Mesh(
     new THREE.TorusGeometry(1.05, 0.08, 7, 18),
-    new THREE.MeshStandardMaterial({ color: 0x252a28, metalness: 0.72, roughness: 0.42 }),
+    new THREE.MeshStandardMaterial({
+      color: 0x252a28,
+      metalness: 0.72,
+      roughness: 0.42,
+    }),
   );
   cage.position.set(-16.1, 1.65, 137.4);
   cage.rotation.y = Math.PI / 2 + 0.34;
@@ -845,9 +888,18 @@ function addGrassriversDetails(scene: THREE.Scene, reducedDensity: boolean): voi
 }
 
 function addPortGellhornDetails(scene: THREE.Scene, collisions: AxisAlignedRectangle[]): void {
-  const fadedCoral = new THREE.MeshStandardMaterial({ color: 0xb96f68, roughness: 0.98 });
-  const concrete = new THREE.MeshStandardMaterial({ color: 0xb5aa98, roughness: 1 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x25282b, roughness: 0.86 });
+  const fadedCoral = new THREE.MeshStandardMaterial({
+    color: 0xb96f68,
+    roughness: 0.98,
+  });
+  const concrete = new THREE.MeshStandardMaterial({
+    color: 0xb5aa98,
+    roughness: 1,
+  });
+  const dark = new THREE.MeshStandardMaterial({
+    color: 0x25282b,
+    roughness: 0.86,
+  });
   addBox(scene, [29, 4.2, 7], [-111, 2.35, -73], fadedCoral);
   addBox(scene, [29.8, 0.25, 2.1], [-111, 4.7, -69.65], concrete);
   for (let index = 0; index < 8; index += 1) {
@@ -900,7 +952,10 @@ function addAmbrosiaDetails(
     scene.add(roof);
     addBoxCollision(collisions, x, -78, 7, 7, 0.1);
   }
-  const stackMaterial = new THREE.MeshStandardMaterial({ color: 0x8c4d3d, roughness: 0.9 });
+  const stackMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8c4d3d,
+    roughness: 0.9,
+  });
   const stack = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.55, 25, 14), stackMaterial);
   stack.position.set(130, 12.7, -83);
   stack.castShadow = true;
@@ -912,7 +967,10 @@ function addAmbrosiaDetails(
   scene.add(refinerySign);
 
   const caneGeometry = new THREE.BoxGeometry(0.08, 2.25, 0.08);
-  const caneMaterial = new THREE.MeshStandardMaterial({ color: 0x8ca84f, roughness: 1 });
+  const caneMaterial = new THREE.MeshStandardMaterial({
+    color: 0x8ca84f,
+    roughness: 1,
+  });
   const caneCount = reducedDensity ? 70 : 150;
   const cane = new THREE.InstancedMesh(caneGeometry, caneMaterial, caneCount);
   const dummy = new THREE.Object3D();
@@ -936,15 +994,24 @@ function addMountKalagaDetails(
   reducedDensity: boolean,
 ): void {
   const trunkGeometry = new THREE.CylinderGeometry(0.12, 0.22, 3.8, 6);
-  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x62452e, roughness: 1 });
+  const trunkMaterial = new THREE.MeshStandardMaterial({
+    color: 0x62452e,
+    roughness: 1,
+  });
   const crownGeometry = new THREE.ConeGeometry(1.45, 4.8, 7);
-  const crownMaterial = new THREE.MeshStandardMaterial({ color: 0x244c38, roughness: 1 });
+  const crownMaterial = new THREE.MeshStandardMaterial({
+    color: 0x244c38,
+    roughness: 1,
+  });
   const treeCount = reducedDensity ? 28 : 58;
   const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, treeCount);
   const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, treeCount);
   const dummy = new THREE.Object3D();
   const random = seededRandom(7519);
-  const mountKalagaAnchor = PLACE_ANCHORS['mount-kalaga-national-park'] ?? { x: 14, z: -158 };
+  const mountKalagaAnchor = PLACE_ANCHORS['mount-kalaga-national-park'] ?? {
+    x: 14,
+    z: -158,
+  };
   let placed = 0;
   while (placed < treeCount) {
     const x = -64 + random() * 145;
@@ -969,8 +1036,14 @@ function addMountKalagaDetails(
   crowns.instanceMatrix.needsUpdate = true;
   scene.add(trunks, crowns);
 
-  const timber = new THREE.MeshStandardMaterial({ color: 0x6f4b30, roughness: 1 });
-  const cabinRoofMaterial = new THREE.MeshStandardMaterial({ color: 0x304039, roughness: 1 });
+  const timber = new THREE.MeshStandardMaterial({
+    color: 0x6f4b30,
+    roughness: 1,
+  });
+  const cabinRoofMaterial = new THREE.MeshStandardMaterial({
+    color: 0x304039,
+    roughness: 1,
+  });
   addBox(scene, [8, 4.2, 5.4], [-34, 2.25, -156], timber);
   const roof = new THREE.Mesh(new THREE.ConeGeometry(5.5, 2.3, 4), cabinRoofMaterial);
   roof.position.set(-34, 5.45, -156);
@@ -978,7 +1051,10 @@ function addMountKalagaDetails(
   scene.add(roof);
   addBoxCollision(collisions, -34, -156, 8, 5.4, 0.25);
 
-  const lookoutSteel = new THREE.MeshStandardMaterial({ color: 0x4c514b, roughness: 0.9 });
+  const lookoutSteel = new THREE.MeshStandardMaterial({
+    color: 0x4c514b,
+    roughness: 0.9,
+  });
   for (const xOffset of [-2, 2]) {
     for (const zOffset of [-2, 2]) {
       addBox(scene, [0.22, 11, 0.22], [65 + xOffset, 5.6, -175 + zOffset], lookoutSteel);
@@ -1043,7 +1119,11 @@ function createHotspotLabel(sceneData: WalkScene, index: number): THREE.Sprite {
     context.font = '500 24px sans-serif';
     context.fillText('Approximate regional placement · press E to explore', 48, 260);
   });
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(4.6, 1.82, 1);
   return sprite;
@@ -1070,7 +1150,11 @@ function createHotspots(
     ring.position.y = 1.15;
     const core = new THREE.Mesh(
       new THREE.CylinderGeometry(0.62, 0.62, 0.05, 24),
-      new THREE.MeshBasicMaterial({ color: 0x42def2, transparent: true, opacity: 0.28 }),
+      new THREE.MeshBasicMaterial({
+        color: 0x42def2,
+        transparent: true,
+        opacity: 0.28,
+      }),
     );
     core.position.y = 0.24;
     const beam = new THREE.Mesh(
@@ -1229,20 +1313,9 @@ export function initializeWalkableWorld(
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x17324b);
-  let reflectionTarget: THREE.WebGLRenderTarget | null = null;
-  const reflectionScene = new RoomEnvironment();
-  const reflectionGenerator = new THREE.PMREMGenerator(renderer);
-  try {
-    reflectionTarget = reflectionGenerator.fromScene(reflectionScene, 0.04);
-    scene.environment = reflectionTarget.texture;
-    scene.environmentIntensity = WALK_WORLD_RENDER_CONFIG.environmentIntensity;
-    root.dataset.walkImageBasedLighting = 'pmrem';
-  } catch {
-    root.dataset.walkImageBasedLighting = 'direct-light-fallback';
-  } finally {
-    reflectionScene.dispose();
-    reflectionGenerator.dispose();
-  }
+  const outdoorEnvironment = createWalkOutdoorEnvironment(renderer, coarsePointer);
+  scene.environmentIntensity = WALK_WORLD_RENDER_CONFIG.environmentIntensity;
+  let environmentRegion = '';
 
   const camera = new THREE.PerspectiveCamera(72, 1, 0.08, WALK_WORLD_RENDER_CONFIG.cameraFarMetres);
   camera.rotation.order = 'YXZ';
@@ -1356,6 +1429,8 @@ export function initializeWalkableWorld(
       ? WALK_WORLD_RENDER_CONFIG.mobileCartographyTileRadius
       : WALK_WORLD_RENDER_CONFIG.desktopCartographyTileRadius,
     anisotropy: Math.min(renderer.capabilities.getMaxAnisotropy(), coarsePointer ? 2 : 8),
+    detail: coarsePointer ? 'mobile' : 'desktop',
+    detailDistance: coarsePointer ? 220 : 300,
   });
   cartography.setProtectedArrival(position);
   cartography.sync(position);
@@ -1368,6 +1443,16 @@ export function initializeWalkableWorld(
     const activeRegion = states[0]?.region;
     if (activeRegion) {
       atmosphere.setRegion(activeRegion);
+      if (environmentRegion !== activeRegion) {
+        try {
+          scene.environment = outdoorEnvironment.textureFor(activeRegion);
+          environmentRegion = activeRegion;
+          root.dataset.walkImageBasedLighting = 'pmrem';
+        } catch {
+          environmentRegion = activeRegion;
+          root.dataset.walkImageBasedLighting = 'direct-light-fallback';
+        }
+      }
       root.dataset.walkAtmosphereRegion = activeRegion;
     }
     const nextKey = visibleRegions.join(',');
@@ -2069,11 +2154,12 @@ export function initializeWalkableWorld(
       eventController.abort();
       resizeObserver.disconnect();
       overlays.dispose();
+      worldLife.dispose();
       regionManager.dispose();
       cartography.dispose();
       atmosphere.dispose();
       scene.environment = null;
-      reflectionTarget?.dispose();
+      outdoorEnvironment.dispose();
       if (document.pointerLockElement === dom.canvas) document.exitPointerLock();
 
       const geometries = new Set<THREE.BufferGeometry>();

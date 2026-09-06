@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
-  AMBROSIA_WORLD,
   LEONIDA_KEYS_WORLD,
   MOUNT_KALAGA_WORLD,
   PLACE_ENTRY_VIEWS,
@@ -12,7 +11,7 @@ import { createWalkWorldLife } from '../../src/features/street-leonida/walk-life
 import { circleIntersectsRectangle } from '../../src/features/street-leonida/walk-engine';
 
 describe('Street Leonida living world', () => {
-  it('keeps moving life inside the canonical Vice City, Ambrosia and Keys corridors', () => {
+  it('keeps traffic and walkers on the active arrival roads, including rotated Ambrosia', () => {
     const scene = new THREE.Scene();
     const life = createWalkWorldLife(scene, false);
     const viceTraffic = scene.children.filter((object) => object.name === 'moving-road-vehicle');
@@ -25,24 +24,41 @@ describe('Street Leonida living world', () => {
       (object) => object.name === 'moving-vice-city-helicopter',
     );
 
+    const roadLocal = (object: THREE.Object3D, region: 'vice-city' | 'ambrosia') => {
+      const view = PLACE_ENTRY_VIEWS[region]!;
+      const direction = new THREE.Vector2(
+        view.position.x - view.target.x,
+        view.position.z - view.target.z,
+      ).normalize();
+      const offset = new THREE.Vector2(
+        object.position.x - view.position.x,
+        object.position.z - view.position.z,
+      );
+      return {
+        x: offset.x * direction.y - offset.y * direction.x,
+        z: offset.dot(direction),
+      };
+    };
     const assertAligned = () => {
       for (const object of viceTraffic) {
-        expect(object.position.x).toBeGreaterThanOrEqual(REGION_WORLD.viceCity.x + 75);
-        expect(object.position.x).toBeLessThanOrEqual(REGION_WORLD.viceCity.x + 125);
-        expect(object.position.z).toBeGreaterThanOrEqual(REGION_WORLD.viceCity.z - 106);
-        expect(object.position.z).toBeLessThanOrEqual(REGION_WORLD.viceCity.z + 126);
+        const local = roadLocal(object, 'vice-city');
+        expect(Math.abs(local.x)).toBeLessThanOrEqual(7.7);
+        expect(Math.abs(local.x)).toBeGreaterThanOrEqual(3.5);
+        expect(local.z).toBeGreaterThanOrEqual(-235.01);
+        expect(local.z).toBeLessThanOrEqual(18.01);
       }
       for (const object of pedestrians) {
-        expect(object.position.x).toBeGreaterThanOrEqual(REGION_WORLD.viceCity.x + 80);
-        expect(object.position.x).toBeLessThanOrEqual(REGION_WORLD.viceCity.x + 120);
-        expect(object.position.z).toBeGreaterThanOrEqual(REGION_WORLD.viceCity.z - 106);
-        expect(object.position.z).toBeLessThanOrEqual(REGION_WORLD.viceCity.z + 126);
+        const local = roadLocal(object, 'vice-city');
+        expect(Math.abs(local.x)).toBeCloseTo(13.35, 4);
+        expect(local.z).toBeGreaterThanOrEqual(-235.01);
+        expect(local.z).toBeLessThanOrEqual(18.01);
       }
       for (const object of ambrosiaTraffic) {
-        expect(object.position.x).toBeGreaterThanOrEqual(AMBROSIA_WORLD.town.x + 2);
-        expect(object.position.x).toBeLessThanOrEqual(AMBROSIA_WORLD.town.x + 6);
-        expect(object.position.z).toBeGreaterThanOrEqual(AMBROSIA_WORLD.town.z - 15);
-        expect(object.position.z).toBeLessThanOrEqual(AMBROSIA_WORLD.town.z + 25);
+        const local = roadLocal(object, 'ambrosia');
+        expect(Math.abs(local.x)).toBeLessThanOrEqual(3.7);
+        expect(Math.abs(local.x)).toBeGreaterThanOrEqual(1.2);
+        expect(local.z).toBeGreaterThanOrEqual(-235.01);
+        expect(local.z).toBeLessThanOrEqual(18.01);
       }
       for (const object of keyBoats) {
         expect(object.position.x).toBeGreaterThanOrEqual(LEONIDA_KEYS_WORLD.westernKeys.x);
@@ -194,7 +210,7 @@ describe('Street Leonida living world', () => {
 
   it('never lets moving traffic enter a solid world collision', () => {
     const scene = new THREE.Scene();
-    const viceRoadX = REGION_WORLD.viceCity.x - 42.4;
+    const viceRoadX = REGION_WORLD.viceCity.x + 94 - 7.5;
     const obstacles = [
       {
         minX: viceRoadX - 1,

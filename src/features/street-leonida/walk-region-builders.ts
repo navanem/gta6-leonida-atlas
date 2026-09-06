@@ -104,11 +104,11 @@ const REGION_GROUND_ANCHORS: Readonly<Record<WalkRenderRegion, readonly WalkPoin
 
 const AMBROSIA_AUTHORING_ANCHOR = { x: 42.8, z: -37 } as const;
 
-/** Keep regional infill clear of the GTADB raster at y=0.055 and ocean top at y=-0.19. */
-const REGIONAL_GROUND_Y = 0.085;
-const REGIONAL_WATER_Y = 0.105;
-const REGIONAL_ACCENT_Y = 0.125;
-const KEYS_ISLAND_Y = 0.135;
+/** Keep coarse continuity below the source raster (y=0.055), above deep state water. */
+const REGIONAL_GROUND_Y = -0.22;
+const REGIONAL_WATER_Y = -0.16;
+const REGIONAL_ACCENT_Y = -0.12;
+const KEYS_ISLAND_Y = -0.08;
 
 export interface WalkRegionResource {
   readonly region: WalkRenderRegion;
@@ -466,8 +466,8 @@ function addApproximateGround(
     opacity: 1,
     depthWrite: true,
     polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    polygonOffsetFactor: 0,
+    polygonOffsetUnits: 0,
   });
   const waterMaterial = new THREE.MeshPhysicalMaterial({
     color: profile.waterColor,
@@ -476,15 +476,15 @@ function addApproximateGround(
     transparent: true,
     opacity: 0.84,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
+    polygonOffsetFactor: 0,
+    polygonOffsetUnits: 0,
   });
   const accentMaterial = new THREE.MeshStandardMaterial({
     color: profile.accentColor,
     roughness: 0.86,
     polygonOffset: true,
-    polygonOffsetFactor: -3,
-    polygonOffsetUnits: -3,
+    polygonOffsetFactor: 0,
+    polygonOffsetUnits: 0,
   });
   const land = createTerrainLayer(terrain, `${region}-approximate-land`);
   const water = createTerrainLayer(terrain, `${region}-approximate-water`);
@@ -658,7 +658,10 @@ function addApproximateGround(
         new THREE.PlaneGeometry(1, 1),
         accentMaterial,
         Array.from({ length: coarsePointer ? 4 : 8 }, (_, index) => ({
-          position: { x: centre.x + (index - 3.5) * 95, z: centre.z + (index % 2 ? 65 : -65) },
+          position: {
+            x: centre.x + (index - 3.5) * 95,
+            z: centre.z + (index % 2 ? 65 : -65),
+          },
           size: [72, 260] as const,
           rotation: 0,
         })),
@@ -681,7 +684,10 @@ function addApproximateGround(
           index === 0 ? `${region}-approximate-relief` : `${region}-approximate-relief-${index}`,
           reliefGeometry,
           accentMaterial,
-          { x: anchor.x + (index - 1) * 120, z: anchor.z + (index % 2 ? 95 : -95) },
+          {
+            x: anchor.x + (index - 1) * 120,
+            z: anchor.z + (index % 2 ? 95 : -95),
+          },
           [210 + index * 30, 160 + index * 24],
           4,
           360 + index * 45,
@@ -767,6 +773,7 @@ export function buildWalkRegion(
   root.userData.environment = WALK_REGION_ENVIRONMENT_PRESETS[region];
   const collisions: AxisAlignedRectangle[] = [];
   const updates: Array<(elapsedSeconds: number) => void> = [];
+  const disposals: Array<() => void> = [];
   const staging = new THREE.Scene();
 
   addApproximateGround(root, region, options.coarsePointer);
@@ -779,6 +786,7 @@ export function buildWalkRegion(
       renderCatalanBoulevard: false,
     });
     updates.push(district.update);
+    disposals.push(district.dispose);
   } else if (region === 'ambrosia') {
     const district = createAmbrosiaDistrict(staging, collisions, options.coarsePointer);
     const translation = {
@@ -806,7 +814,7 @@ export function buildWalkRegion(
     }
   }
 
-  addRegionalArrivalForeground(
+  const arrival = addRegionalArrivalForeground(
     staging,
     collisions,
     region,
@@ -814,6 +822,7 @@ export function buildWalkRegion(
     options.renderer,
   );
 
+  if (arrival) updates.push(arrival.update);
   moveChildren(staging, root);
   const featureIds: string[] = [];
   root.traverse((object) => {
@@ -834,6 +843,8 @@ export function buildWalkRegion(
     dispose() {
       if (disposed) return;
       disposed = true;
+      arrival?.dispose();
+      disposals.forEach((dispose) => dispose());
       disposeObjectTree(root, resources);
     },
   };

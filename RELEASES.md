@@ -2,6 +2,22 @@
 
 Release history, newest first.
 
+## v0.7.0 — 2026-09-06
+
+**Released: a fuller, living 3D Leonida.**
+
+The explorer restores mapped road visibility and building occupancy, including the view behind Vice City's arrival. Ground-tile coverage is separate from visual detail: desktop/mobile retain 7×7/5×5 tile neighborhoods, while detailed facade geometry is limited to 300/220 metres.
+
+- Rotated footprints, regional floor spacing, roofs, recessed windows and smoother source-road geometry replace repeated axis-aligned boxes and gaps.
+- Hotel Dixon, the Sahara arena, waterfront towers and the mural viaduct have rebuilt volumes. Existing regional arrivals gain porches, pitched roofs, storefronts and service details.
+- Original skinned pedestrians replace block figures and oversized life collages. Feet and tyres meet active street surfaces, and traffic follows the actual Vice City and rotated Ambrosia arrival frames.
+- Native nearby foliage, continuous local Kalaga rock ridges, outdoor reflections, traveling water normals, shaded clouds and bounded night streetlights deepen the regional scenes.
+- Coordinate provenance, source attribution, map data, local workspaces and deployment-only account/Analytics boundaries are preserved. Existing releases from v0.5.0 remain available in About.
+
+Validation includes 503 unit/integration tests, TypeScript, ESLint, a production build, actual Chromium views of all six regions and additional landmark/actor captures. Geometry, contact, streaming and disposal checks are included. GPU measurements were obtained with software rendering; no hardware FPS guarantee is claimed.
+
+The supplied game screenshots guide the visual interpretation. Original game models, exact building heights, comprehensive surveyed relief and rigged game characters were not supplied. New local details remain **APPROXIMATE**, and the result is a browser reconstruction with visible simplifications. See [visual verification](https://github.com/navanem/gta6-leonida-atlas/blob/v0.7.0/docs/visual-overhaul/VERIFICATION.md).
+
 ## v0.6.2 — 2026-09-06
 
 **Released: public collaboration and security hardening.**

@@ -211,6 +211,42 @@ describe('Street Leonida GTADB ground cartography', () => {
     expect(extractGtadbBuildingFootprints(pixels, width, height, 4)).toEqual([]);
   });
 
+  it.each(['desktop', 'mobile'] as const)(
+    'retains every nearby source building at radius one on %s',
+    (detail) => {
+      const pixels = new Uint8ClampedArray(256 * 256 * 4).fill(216);
+      for (const startX of [40, 110, 180])
+        for (let y = 120; y < 128; y++)
+          for (let x = startX; x < startX + 8; x++) {
+            pixels.set([176, 176, 176, 255], (y * 256 + x) * 4);
+          }
+      vi.stubGlobal('document', {
+        createElement: () => ({
+          getContext: () => ({
+            drawImage() {},
+            getImageData: () => ({ data: pixels, width: 256, height: 256 }),
+          }),
+        }),
+      });
+      const loads: Array<() => void> = [];
+      vi.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+        const texture = new THREE.Texture<HTMLImageElement>();
+        texture.image = {} as HTMLImageElement;
+        loads.push(() => onLoad?.(texture));
+        return texture;
+      });
+      const stream = createGtadbGroundTileStream({
+        radius: 1,
+        anisotropy: 1,
+        detail,
+      });
+      stream.sync(getGtadbTileWorldCenter({ z: 5, x: 10, y: 30 }));
+      loads.forEach((complete) => complete());
+      expect(stream.collisions).toHaveLength(27);
+      stream.dispose();
+    },
+  );
+
   it('uses a generated window-and-frame texture instead of blank procedural walls', () => {
     const texture = createGtadbBuildingFacadeTexture();
     const emissive = createGtadbBuildingEmissiveTexture();
@@ -227,6 +263,43 @@ describe('Street Leonida GTADB ground cartography', () => {
     expect(new Set(emissive.image.data as Uint8Array)).toContain(255);
     texture.dispose();
     emissive.dispose();
+  });
+
+  it('ignores a late tile generation after traveling away and back to the same address', () => {
+    const pixels = new Uint8ClampedArray(256 * 256 * 4).fill(216);
+    for (let y = 60; y < 68; y++)
+      for (let x = 60; x < 68; x++) {
+        pixels.set([176, 176, 176, 255], (y * 256 + x) * 4);
+      }
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        getContext: () => ({
+          drawImage() {},
+          getImageData: () => ({ data: pixels, width: 256, height: 256 }),
+        }),
+      }),
+    });
+    const loads: Array<{ texture: THREE.Texture<HTMLImageElement>; complete: () => void }> = [];
+    vi.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+      const texture = new THREE.Texture<HTMLImageElement>();
+      texture.image = {} as HTMLImageElement;
+      loads.push({ texture, complete: () => onLoad?.(texture) });
+      return texture;
+    });
+    const stream = createGtadbGroundTileStream({ radius: 0, anisotropy: 1 });
+    const original = getGtadbTileWorldCenter({ z: 5, x: 10, y: 30 });
+    stream.sync(original);
+    stream.sync(getGtadbTileWorldCenter({ z: 5, x: 20, y: 40 }));
+    stream.sync(original);
+    const active = stream.root.children[0] as THREE.Mesh;
+    const activeMap = (active.material as THREE.MeshStandardMaterial).map;
+    loads[0]!.complete();
+    expect((active.material as THREE.MeshStandardMaterial).map).toBe(activeMap);
+    expect(activeMap).toBe(loads[2]!.texture);
+    expect(stream.collisions).toHaveLength(0);
+    stream.dispose();
+    loads[2]!.complete();
+    expect(stream.root.children).toHaveLength(0);
   });
 
   it('adds repeated architectural floor lines only to buildings tall enough to carry them', () => {

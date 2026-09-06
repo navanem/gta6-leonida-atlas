@@ -1,5 +1,10 @@
 import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
+import { createNativeVegetation } from './walk-native-vegetation';
+import { createPedestrianLibrary } from './walk-pedestrians';
+import { installWalkWaterSurface } from './walk-water-surface';
+import { createCanyonRelief } from './walk-canyon-relief';
+import { addArrivalArchitecture } from './walk-arrival-architecture';
 
 import { gtadbToWorld } from './leonida-coordinates';
 import { REVIEWED_GTADB_ANCHORS, type ReviewedGtadbAnchorId } from './leonida-evidence';
@@ -25,6 +30,7 @@ interface Transform {
 }
 
 interface ArrivalGeometry {
+  readonly coarsePointer: boolean;
   readonly box: THREE.BoxGeometry;
   readonly cylinder: THREE.CylinderGeometry;
   readonly cone: THREE.ConeGeometry;
@@ -90,10 +96,12 @@ const PLACE_SLUGS: Readonly<Record<DetailedArrivalRegion, string>> = {
 
 const ASPHALT_ASSET = publicPath('assets/street-leonida/textures/sunworn-asphalt.jpg');
 const GRASS_ASSET = publicPath('assets/street-leonida/textures/subtropical-grass.jpg');
-const REGION_FACADE_ATLAS_ASSET = publicPath('assets/street-leonida/facades/reference-led-facade-atlas.png');
-const REGION_SURFACE_ATLAS_ASSET =
-  publicPath('assets/street-leonida/textures/reference-led-surface-atlas.png');
-const REGION_LIFE_ATLAS_ASSET = publicPath('assets/street-leonida/sprites/reference-led-life-atlas.png');
+const REGION_FACADE_ATLAS_ASSET = publicPath(
+  'assets/street-leonida/facades/reference-led-facade-atlas.png',
+);
+const REGION_SURFACE_ATLAS_ASSET = publicPath(
+  'assets/street-leonida/textures/reference-led-surface-atlas.png',
+);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const MOUNT_ROAD_START_Z = 28;
 const MOUNT_ROAD_END_Z = -252;
@@ -167,6 +175,7 @@ function standard(
 
 function createGeometry(coarsePointer: boolean): ArrivalGeometry {
   return {
+    coarsePointer,
     box: new THREE.BoxGeometry(1, 1, 1),
     cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, coarsePointer ? 8 : 16),
     cone: new THREE.ConeGeometry(0.5, 1, coarsePointer ? 8 : 14),
@@ -350,55 +359,6 @@ function createSurfaceAtlasMaterial(
   return material;
 }
 
-function createLifeAtlasMaterial(
-  renderer: THREE.WebGLRenderer,
-  column: 0 | 1 | 2 | 3,
-  row: 0 | 1,
-): THREE.MeshBasicMaterial {
-  const texture = loadTexture(REGION_LIFE_ATLAS_ASSET, renderer);
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.repeat.set(1 / 4, 1 / 2);
-  texture.offset.set(column / 4, row === 0 ? 1 / 2 : 0);
-  texture.name = `${REGION_LIFE_ATLAS_ASSET}#${column},${row}`;
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    color: 0xffffff,
-    transparent: true,
-    alphaTest: 0.035,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    toneMapped: true,
-  });
-  material.name = `street-leonida/life/${column}-${row}`;
-  return material;
-}
-
-function addLifeSprite(
-  parent: THREE.Object3D,
-  geometry: ArrivalGeometry,
-  material: THREE.MeshBasicMaterial,
-  position: Vec3,
-  scale: readonly [number, number],
-  name: string,
-): THREE.Mesh {
-  const sprite = addMesh(
-    parent,
-    geometry.plane,
-    material,
-    position,
-    [scale[0], scale[1], 1],
-    [0, 0, 0],
-    name,
-    false,
-  );
-  sprite.castShadow = false;
-  sprite.receiveShadow = false;
-  sprite.renderOrder = 6;
-  sprite.userData.visualAsset = REGION_LIFE_ATLAS_ASSET;
-  return sprite;
-}
-
 function createMaterials(renderer: THREE.WebGLRenderer): ArrivalMaterials {
   const asphalt = loadTexture(ASPHALT_ASSET, renderer, [2.5, 24]);
   const grass = loadTexture(GRASS_ASSET, renderer, [8, 18]);
@@ -464,6 +424,19 @@ function addPhotoVegetation(
   positions: readonly (readonly [number, number, number])[],
   name: string,
 ): void {
+  const near = positions.filter(([x, z]) => Math.abs(x) < 80 && z > -110);
+  const far = positions.filter(([x, z]) => Math.abs(x) >= 80 || z <= -110);
+  const kind = asset.includes('cypress')
+    ? 'cypress'
+    : asset.includes('pine')
+      ? 'pine'
+      : asset.includes('sugarcane')
+        ? 'cane'
+        : 'palm';
+  const native = createNativeVegetation(kind, near, geometry.coarsePointer ? 'mid' : 'near');
+  native.name = `${name}-native`;
+  feature.add(native);
+  if (!far.length) return;
   const texture = loadTexture(asset, renderer);
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -482,7 +455,7 @@ function addPhotoVegetation(
     feature,
     geometry.crossedVegetation,
     material,
-    positions.map(([x, z, height], index) => ({
+    far.map(([x, z, height], index) => ({
       position: [x, 0, z],
       scale: [height, height, height],
       rotation: [0, index * 0.73, 0],
@@ -552,14 +525,20 @@ function addUtilityGrid(
     grid,
     geometry.cylinder,
     materials.darkTimber,
-    zPositions.map((z) => ({ position: [x, 4.8, z], scale: [0.24, 9.6, 0.24] })),
+    zPositions.map((z) => ({
+      position: [x, 4.8, z],
+      scale: [0.24, 9.6, 0.24],
+    })),
     `${name}-poles`,
   );
   addInstances(
     grid,
     geometry.box,
     materials.darkTimber,
-    zPositions.map((z) => ({ position: [x, 8.45, z], scale: [4.8, 0.18, 0.18] })),
+    zPositions.map((z) => ({
+      position: [x, 8.45, z],
+      scale: [4.8, 0.18, 0.18],
+    })),
     `${name}-crossarms`,
   );
   for (let index = 0; index < zPositions.length - 1; index += 1) {
@@ -697,7 +676,7 @@ function addCommonRoad(
   const widths: Readonly<Record<DetailedArrivalRegion, number>> = {
     'vice-city': 24,
     'leonida-keys': 14,
-    grassrivers: 12,
+    grassrivers: 7,
     'port-gellhorn': 18,
     ambrosia: 15,
     'mount-kalaga': 12,
@@ -713,7 +692,7 @@ function addCommonRoad(
     // Keep the broad boulevard charcoal under the desktop IBL path. Reflections
     // belong to the small wet accent meshes, not to the whole carriageway.
     material.name = 'street-leonida/vice-city/dry-sunworn-asphalt';
-    material.color.setHex(0x777874);
+    material.color.setHex(0xa6aeb5);
     material.roughness = 0.96;
     material.metalness = 0;
     material.envMapIntensity = 0.14;
@@ -944,7 +923,7 @@ function addVehicle(
     materialOwnership: 'region-owned',
   });
   vehicle.name = name;
-  vehicle.position.set(...position);
+  vehicle.position.set(position[0], 0.27, position[2]);
   vehicle.rotation.y = rotationY;
   feature.add(vehicle);
 }
@@ -1039,9 +1018,20 @@ function addViceCityArrival(
   }
   addInstances(
     feature,
-    geometry.box,
-    materials.dark,
-    roadWear,
+    geometry.context,
+    new THREE.MeshStandardMaterial({
+      color: 0x32342f,
+      roughness: 0.97,
+      transparent: true,
+      opacity: 0.26,
+      depthWrite: false,
+    }),
+    roadWear.map((t) => ({
+      ...t,
+      position: [t.position[0], 0.276, t.position[2]] as Vec3,
+      scale: [t.scale[0], t.scale[2], 1] as Vec3,
+      rotation: [-Math.PI / 2, 0, t.rotation[1]] as Vec3,
+    })),
     'vice-city-arrival-road-wear',
     false,
   );
@@ -1067,9 +1057,14 @@ function addViceCityArrival(
   }));
   addInstances(
     feature,
-    geometry.box,
+    geometry.context,
     wetAsphalt,
-    wetTransforms,
+    wetTransforms.map((t) => ({
+      ...t,
+      position: [t.position[0], 0.278, t.position[2]] as Vec3,
+      scale: [t.scale[0], t.scale[2], 1] as Vec3,
+      rotation: [-Math.PI / 2, 0, t.rotation[1]] as Vec3,
+    })),
     'vice-city-arrival-wet-asphalt-accents',
     false,
   );
@@ -1084,7 +1079,11 @@ function addViceCityArrival(
     { x: -23, z: -143, width: 17, depth: 30, height: 24, color: 0xd49b8d },
     { x: 23, z: -157, width: 16, depth: 32, height: 39, color: 0xa7c7c3 },
   ];
-  const buildings = allBuildings.slice(0, coarsePointer ? 6 : allBuildings.length);
+  const buildings = [
+    ...allBuildings,
+    { x: -23, z: 13, width: 16, depth: 26, height: 16, color: 0xe5d9c5 },
+    { x: 24, z: 15, width: 17, depth: 28, height: 23, color: 0xc7d8d4 },
+  ];
   const layeredBuildingMasses: Transform[] = buildings.map((building) => ({
     position: [building.x, building.height / 2 + 0.28, building.z],
     scale: [building.width, building.height, building.depth],
@@ -1335,7 +1334,14 @@ function addViceCityArrival(
   signage.userData.landmarkClaim = 'NONE';
   feature.add(signage);
   const signSpecs = [
-    { x: -14.75, z: -27, yaw: Math.PI / 2, title: 'CAFE', subtitle: 'OPEN LATE', accent: 0x62e8ea },
+    {
+      x: -14.75,
+      z: -27,
+      yaw: Math.PI / 2,
+      title: 'CAFE',
+      subtitle: 'OPEN LATE',
+      accent: 0x62e8ea,
+    },
     {
       x: 14.75,
       z: -70,
@@ -1461,11 +1467,10 @@ function addViceCityArrival(
   atmosphericDepth.userData.haze = 'subtropical-humid';
   atmosphericDepth.userData.evidence = 'APPROXIMATE';
   feature.add(atmosphericDepth);
-  const hazeMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.34,
-    depthWrite: false,
+  const hazeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xd4dbd8,
+    roughness: 0.66,
+    metalness: 0.12,
     fog: true,
   });
   hazeMaterial.name = 'street-leonida/vice-city/distant-haze';
@@ -1539,9 +1544,15 @@ function addKeysArrival(
   const rails: Transform[] = [];
   const posts: Transform[] = [];
   for (const side of [-1, 1]) {
-    rails.push({ position: [side * (roadWidth / 2 + 1.55), 1.05, -112], scale: [0.16, 0.22, 278] });
+    rails.push({
+      position: [side * (roadWidth / 2 + 1.55), 1.05, -112],
+      scale: [0.16, 0.22, 278],
+    });
     for (let z = 12; z >= -244; z -= 8) {
-      posts.push({ position: [side * (roadWidth / 2 + 1.55), 0.58, z], scale: [0.18, 1.1, 0.18] });
+      posts.push({
+        position: [side * (roadWidth / 2 + 1.55), 0.58, z],
+        scale: [0.18, 1.1, 0.18],
+      });
     }
   }
   addInstances(feature, geometry.box, materials.galvanized, rails, 'keys-causeway-guardrails');
@@ -1684,10 +1695,22 @@ function addKeysArrival(
     new THREE.ShapeGeometry(rustyGableShape),
     materials.cream,
     [
-      { position: [8.5, 6.3, 0], scale: [9.7, 1.55, 1], rotation: [0, Math.PI / 2, 0] },
-      { position: [-8.5, 6.3, 0], scale: [9.7, 1.55, 1], rotation: [0, -Math.PI / 2, 0] },
+      {
+        position: [8.5, 6.3, 0],
+        scale: [9.7, 1.55, 1],
+        rotation: [0, Math.PI / 2, 0],
+      },
+      {
+        position: [-8.5, 6.3, 0],
+        scale: [9.7, 1.55, 1],
+        rotation: [0, -Math.PI / 2, 0],
+      },
       { position: [0, 8.4, 2.01], scale: [3.6, 1, 1] },
-      { position: [0, 8.4, -0.41], scale: [3.6, 1, 1], rotation: [0, Math.PI, 0] },
+      {
+        position: [0, 8.4, -0.41],
+        scale: [3.6, 1, 1],
+        rotation: [0, Math.PI, 0],
+      },
     ],
     'keys-rusty-anchor-gable-endcaps',
   );
@@ -2043,7 +2066,12 @@ function addKeysArrival(
   addStreetLights(feature, geometry, materials, roadWidth, coarsePointer, 'keys-arrival-lights');
   return [
     { x: barX, z: barZ, width: 12, depth: 7 },
-    { x: rustyAnchorPosition.x, z: rustyAnchorPosition.z, width: 18.5, depth: 12.5 },
+    {
+      x: rustyAnchorPosition.x,
+      z: rustyAnchorPosition.z,
+      width: 18.5,
+      depth: 12.5,
+    },
   ];
 }
 
@@ -2058,12 +2086,12 @@ function addGrassriversArrival(
   const tannicWater = materials.water.clone();
   tannicWater.name = 'street-leonida/grassrivers/tannic-water';
   tannicWater.color.setHex(0x17251f);
-  tannicWater.roughness = 0.48;
+  tannicWater.roughness = 0.23;
   tannicWater.metalness = 0.02;
-  tannicWater.clearcoat = 0.16;
-  tannicWater.clearcoatRoughness = 0.52;
+  tannicWater.clearcoat = 0.6;
+  tannicWater.clearcoatRoughness = 0.24;
   tannicWater.opacity = 0.98;
-  tannicWater.envMapIntensity = 0.18;
+  tannicWater.envMapIntensity = 0.9;
   addMesh(
     feature,
     geometry.box,
@@ -2081,11 +2109,31 @@ function addGrassriversArrival(
     opacity: 0.58,
   });
   const marshSurfaceTiles: readonly Transform[] = [
-    { position: [-56, 0.185, -18], scale: [45, 72, 1], rotation: [-Math.PI / 2, 0, 0.18] },
-    { position: [58, 0.187, -62], scale: [43, 64, 1], rotation: [-Math.PI / 2, 0, -0.27] },
-    { position: [-52, 0.189, -112], scale: [51, 70, 1], rotation: [-Math.PI / 2, 0, -0.11] },
-    { position: [54, 0.186, -158], scale: [48, 76, 1], rotation: [-Math.PI / 2, 0, 0.31] },
-    { position: [-48, 0.188, -216], scale: [55, 68, 1], rotation: [-Math.PI / 2, 0, 0.09] },
+    {
+      position: [-56, 0.185, -18],
+      scale: [45, 72, 1],
+      rotation: [-Math.PI / 2, 0, 0.18],
+    },
+    {
+      position: [58, 0.187, -62],
+      scale: [43, 64, 1],
+      rotation: [-Math.PI / 2, 0, -0.27],
+    },
+    {
+      position: [-52, 0.189, -112],
+      scale: [51, 70, 1],
+      rotation: [-Math.PI / 2, 0, -0.11],
+    },
+    {
+      position: [54, 0.186, -158],
+      scale: [48, 76, 1],
+      rotation: [-Math.PI / 2, 0, 0.31],
+    },
+    {
+      position: [-48, 0.188, -216],
+      scale: [55, 68, 1],
+      rotation: [-Math.PI / 2, 0, 0.09],
+    },
   ];
   const marshEdge = addInstances(
     feature,
@@ -2097,22 +2145,6 @@ function addGrassriversArrival(
   );
   marshEdge.userData.evidence = 'APPROXIMATE';
   marshEdge.userData.edgeProfile = 'irregular-marsh-mangrove-margin';
-  addLifeSprite(
-    feature,
-    geometry,
-    createLifeAtlasMaterial(renderer, 2, 0),
-    [-28, 4.8, -36],
-    [12.5, 10],
-    'grassrivers-dock-life-sprite',
-  );
-  addLifeSprite(
-    feature,
-    geometry,
-    createLifeAtlasMaterial(renderer, 3, 0),
-    [34, 5.3, -58],
-    [9.5, 11],
-    'grassrivers-wetland-life-sprite',
-  );
   const marshPatches: Transform[] = [];
   for (let index = 0; index < (coarsePointer ? 12 : 25); index += 1) {
     const side = index % 2 ? -1 : 1;
@@ -2452,7 +2484,12 @@ function addGrassriversArrival(
   );
   return [
     { x: campX, z: campZ, width: 8, depth: 6 },
-    ...settlementBuildings.map(({ x, z, width, depth }) => ({ x, z, width, depth })),
+    ...settlementBuildings.map(({ x, z, width, depth }) => ({
+      x,
+      z,
+      width,
+      depth,
+    })),
   ];
 }
 
@@ -2497,7 +2534,10 @@ function addPortGellhornArrival(
   for (let floor = 0; floor < 2; floor += 1) {
     for (let index = 0; index < roomCount; index += 1) {
       const x = motelX - 11 + (index * 22) / Math.max(1, roomCount - 1);
-      motelDoors.push({ position: [x, 2.2 + floor * 4.3, motelZ + 6.08], scale: [1.2, 2.5, 0.16] });
+      motelDoors.push({
+        position: [x, 2.2 + floor * 4.3, motelZ + 6.08],
+        scale: [1.2, 2.5, 0.16],
+      });
       motelWindows.push({
         position: [x + 1.35, 2.3 + floor * 4.3, motelZ + 6.1],
         scale: [1.2, 1.55, 0.14],
@@ -2564,7 +2604,10 @@ function addPortGellhornArrival(
   gableShape.lineTo(6, 0);
   gableShape.lineTo(0, 2.05);
   gableShape.closePath();
-  const gableGeometry = new THREE.ExtrudeGeometry(gableShape, { depth: 0.16, bevelEnabled: false });
+  const gableGeometry = new THREE.ExtrudeGeometry(gableShape, {
+    depth: 0.16,
+    bevelEnabled: false,
+  });
   addInstances(
     starletMotel,
     gableGeometry,
@@ -2612,8 +2655,14 @@ function addPortGellhornArrival(
   const porchLights: Transform[] = [];
   for (let index = 0; index < 7; index += 1) {
     const x = -11.1 + index * 3.65;
-    exactMotelDoors.push({ position: [x - 0.72, 1.58, 4.055], scale: [0.88, 2.4, 0.14] });
-    exactMotelWindows.push({ position: [x + 0.83, 2.02, 4.08], scale: [1.52, 1.52, 0.14] });
+    exactMotelDoors.push({
+      position: [x - 0.72, 1.58, 4.055],
+      scale: [0.88, 2.4, 0.14],
+    });
+    exactMotelWindows.push({
+      position: [x + 0.83, 2.02, 4.08],
+      scale: [1.52, 1.52, 0.14],
+    });
     for (const side of [-1, 1]) {
       windowFrames.push({
         position: [x + 0.83 + side * 0.81, 2.02, 4.22],
@@ -2631,8 +2680,14 @@ function addPortGellhornArrival(
         rotation: [0.2, 0, 0],
       });
     }
-    porchPiers.push({ position: [x - 1.67, 1.86, 6.08], scale: [0.47, 3.28, 0.57] });
-    porchLights.push({ position: [x - 0.72, 3.05, 4.24], scale: [0.22, 0.12, 0.15] });
+    porchPiers.push({
+      position: [x - 1.67, 1.86, 6.08],
+      scale: [0.47, 3.28, 0.57],
+    });
+    porchLights.push({
+      position: [x - 0.72, 3.05, 4.24],
+      scale: [0.22, 0.12, 0.15],
+    });
   }
   porchPiers.push({ position: [12.5, 1.86, 6.08], scale: [0.47, 3.28, 0.57] });
   addInstances(
@@ -3028,7 +3083,12 @@ function addPortGellhornArrival(
   return [
     { x: motelX, z: motelZ, width: 27, depth: 13 },
     { x: dinerX, z: dinerZ, width: 15, depth: 10 },
-    { x: starletMotelPosition.x, z: starletMotelPosition.z, width: 27, depth: 13 },
+    {
+      x: starletMotelPosition.x,
+      z: starletMotelPosition.z,
+      width: 27,
+      depth: 13,
+    },
     { x: cabaretPosition.x, z: cabaretPosition.z, width: 16, depth: 11 },
   ];
 }
@@ -3066,14 +3126,6 @@ function addAmbrosiaArrival(
     [0, 0, 0],
     'ambrosia-roadside-market-facade',
     false,
-  );
-  addLifeSprite(
-    feature,
-    geometry,
-    createLifeAtlasMaterial(renderer, 1, 1),
-    [16, 2.35, -52],
-    [6, 4.1],
-    'ambrosia-biker-pack',
   );
   addMesh(
     roadsideMarket,
@@ -3262,7 +3314,12 @@ function addAmbrosiaArrival(
     const side = row % 2 ? -1 : 1;
     const x = side * (11 + (row % 7) * 2.1);
     for (let z = -10; z >= -245; z -= coarsePointer ? 9 : 5.5) {
-      cane.push({ position: [x, 1.25, z], scale: [0.16, 2.5, 0.16], rotation: [0, row * 0.37, 0] });
+      if (x < -10 && z < -18 && z > -54) continue;
+      cane.push({
+        position: [x, 1.25, z],
+        scale: [0.16, 2.5, 0.16],
+        rotation: [0, row * 0.37, 0],
+      });
     }
   }
   addInstances(
@@ -3281,11 +3338,11 @@ function addAmbrosiaArrival(
     Array.from({ length: coarsePointer ? 12 : 28 }, (_, index) => {
       const side = index % 2 ? -1 : 1;
       return [side * (13 + (index % 6) * 3.2), -8 - index * 8.3, 2.6 + (index % 4) * 0.28] as const;
-    }),
+    }).filter(([x, z]) => !(x < -10 && z < -18 && z > -54)),
     'ambrosia-arrival-photo-sugarcane',
   );
 
-  const railZ = -30;
+  const railZ = -12;
   addInstances(
     feature,
     geometry.box,
@@ -3441,14 +3498,6 @@ function addMountKalagaArrival(
     'kalaga-rock-cut-cliff-masses',
     true,
   );
-  addLifeSprite(
-    feature,
-    geometry,
-    createLifeAtlasMaterial(renderer, 2, 1),
-    [18, 5.25, -25],
-    [9.8, 11.2],
-    'kalaga-forest-life-sprite',
-  );
   addInstances(
     rockCut,
     geometry.rock,
@@ -3481,11 +3530,23 @@ function addMountKalagaArrival(
   );
   const bridgeBeams: Array<{ start: Vec3; end: Vec3 }> = [];
   for (const zSide of [-1, 1]) {
-    bridgeBeams.push({ start: [-41, 14, zSide * 2.5], end: [41, 14, zSide * 2.5] });
-    bridgeBeams.push({ start: [-41, 23, zSide * 2.5], end: [41, 23, zSide * 2.5] });
+    bridgeBeams.push({
+      start: [-41, 14, zSide * 2.5],
+      end: [41, 14, zSide * 2.5],
+    });
+    bridgeBeams.push({
+      start: [-41, 23, zSide * 2.5],
+      end: [41, 23, zSide * 2.5],
+    });
     for (let x = -40; x < 40; x += 10) {
-      bridgeBeams.push({ start: [x, 14, zSide * 2.5], end: [x + 10, 23, zSide * 2.5] });
-      bridgeBeams.push({ start: [x, 23, zSide * 2.5], end: [x + 10, 14, zSide * 2.5] });
+      bridgeBeams.push({
+        start: [x, 14, zSide * 2.5],
+        end: [x + 10, 23, zSide * 2.5],
+      });
+      bridgeBeams.push({
+        start: [x, 23, zSide * 2.5],
+        end: [x + 10, 14, zSide * 2.5],
+      });
     }
   }
   for (const [index, beam] of bridgeBeams.entries()) {
@@ -3652,14 +3713,6 @@ function addMountKalagaArrival(
   );
   roadsideShelter.userData.evidence = 'APPROXIMATE';
   roadsideShelter.userData.landmarkClaim = 'NONE';
-  addMesh(
-    feature,
-    geometry.cone,
-    materials.rust,
-    [cabinX, 6.3, cabinZ],
-    [13, 3.4, 10],
-    [0, Math.PI / 4 + 0.08, 0],
-  );
   addMesh(feature, geometry.box, materials.warmGlass, [cabinX, 3, cabinZ + 4.05], [2.3, 1.8, 0.14]);
   addMesh(
     feature,
@@ -3734,6 +3787,11 @@ function addMountKalagaArrival(
   return [{ x: cabinX, z: cabinZ, width: 10, depth: 8 }];
 }
 
+export interface RegionalArrivalGroup extends THREE.Group {
+  update(elapsedSeconds: number): void;
+  dispose(): void;
+}
+
 /**
  * Adds a region-specific, evidence-labelled foreground at each map arrival.
  * Global placement remains in the pinned GTADB coordinate frame; these close-up
@@ -3745,12 +3803,12 @@ export function addRegionalArrivalForeground(
   region: WalkRenderRegion,
   coarsePointer: boolean,
   renderer: THREE.WebGLRenderer,
-): THREE.Group | null {
+): RegionalArrivalGroup | null {
   const view = PLACE_ENTRY_VIEWS[PLACE_SLUGS[region]];
   if (!view) return null;
   const geometry = createGeometry(coarsePointer);
   const materials = createMaterials(renderer);
-  const feature = new THREE.Group();
+  const feature = new THREE.Group() as RegionalArrivalGroup;
   feature.name = REGIONAL_ARRIVAL_FEATURE_IDS[region];
   feature.position.set(view.position.x, 0, view.position.z);
   feature.rotation.y = Math.atan2(view.position.x - view.target.x, view.position.z - view.target.z);
@@ -3802,6 +3860,27 @@ export function addRegionalArrivalForeground(
                   coarsePointer,
                   renderer,
                 );
+  const architecture = addArrivalArchitecture(feature, region, coarsePointer);
+  for (const c of architecture.collisions) {
+    addCollision(
+      collisions,
+      view.position,
+      feature.rotation.y,
+      (c.minX + c.maxX) / 2,
+      (c.minZ + c.maxZ) / 2,
+      c.maxX - c.minX,
+      c.maxZ - c.minZ,
+    );
+  }
+  if (region === 'mount-kalaga') feature.add(createCanyonRelief(coarsePointer));
+  if (region === 'port-gellhorn') {
+    for (let i = 0; i < (coarsePointer ? 2 : 4); i++) {
+      const light = new THREE.PointLight(0xffbd7b, 170, 38, 2);
+      light.name = 'port-streetlight-pool';
+      light.position.set(i % 2 ? -10.5 : 10.5, 6.8, 3 - i * 24);
+      feature.add(light);
+    }
+  }
   for (const collision of localCollisions) {
     addCollision(
       collisions,
@@ -3813,6 +3892,56 @@ export function addRegionalArrivalForeground(
       collision.depth,
     );
   }
+  const activeWater = feature.getObjectByName(
+    region === 'grassrivers' ? 'grassrivers-arrival-water' : 'keys-arrival-water',
+  ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial> | undefined;
+  const waterSurface = activeWater
+    ? installWalkWaterSurface(activeWater.material, region === 'grassrivers' ? 0.45 : 1)
+    : null;
+  const people = createPedestrianLibrary();
+  const actors = Array.from({ length: coarsePointer ? 2 : 4 }, (_, index) => {
+    const actor = people.create({
+      variant: index + (region === 'port-gellhorn' ? 3 : 0),
+      height: 1.65 + index * 0.045,
+      pose: index % 2 ? 'phone' : 'idle',
+    });
+    actor.root.position.set((index % 2 ? -1 : 1) * (roadWidth / 2 + 1.25), 0.155, 4 - index * 9);
+    actor.root.rotation.y = index * 1.6;
+    feature.add(actor.root);
+    return actor;
+  });
+  // Anonymous vegetation describes regional character, not an exact mapped landmark.
+  const planting = Array.from({ length: coarsePointer ? 20 : 42 }, (_, i) => {
+    const angle = i * 2.39996;
+    const radius = 35 + ((i * 31) % 85);
+    return [Math.cos(angle) * radius, 20 + Math.sin(angle) * radius, 7 + (i % 6)] as const;
+  }).filter(
+    ([x, z]) =>
+      Math.abs(x) > roadWidth / 2 + 6 &&
+      !localCollisions.some(
+        (c) => Math.abs(x - c.x) < c.width / 2 + 5 && Math.abs(z - c.z) < c.depth / 2 + 5,
+      ),
+  );
+  feature.add(
+    createNativeVegetation(
+      region === 'grassrivers' ? 'cypress' : region === 'mount-kalaga' ? 'pine' : 'palm',
+      planting,
+      coarsePointer ? 'mid' : 'near',
+    ),
+  );
+  let disposed = false;
+  feature.update = (elapsed) => {
+    if (!disposed) {
+      waterSurface?.update(elapsed);
+      actors.forEach((actor) => actor.update({ elapsedSeconds: elapsed }));
+    }
+  };
+  feature.dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    waterSurface?.dispose();
+    people.dispose();
+  };
   let detailCount = 0;
   feature.traverse((object) => {
     if (object instanceof THREE.InstancedMesh) detailCount += object.count;

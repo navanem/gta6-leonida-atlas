@@ -13,6 +13,7 @@ interface VehiclePart {
   scale: Vec3;
   rotation?: Vec3;
   layer?: VehicleLayer;
+  wheel?: readonly [x: number, y: number, z: number, radius: number];
 }
 
 export type RoadVehicleType = 'sedan' | 'pickup' | 'convertible' | 'police' | 'tanker' | 'utility';
@@ -44,7 +45,7 @@ const softBox = new RoundedBoxGeometry(1, 1, 1, 1, 0.065);
 const cylinder = new THREE.CylinderGeometry(0.5, 0.5, 1, 12);
 const wheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
 const torus = new THREE.TorusGeometry(0.5, 0.12, 8, 16);
-const upperWheelArch = new THREE.TorusGeometry(0.5, 0.12, 8, 18, Math.PI);
+const upperWheelArch = new THREE.TorusGeometry(0.5, 0.065, 6, 18, Math.PI);
 const sphere = new THREE.SphereGeometry(0.5, 12, 8);
 
 function deformedBox(
@@ -99,10 +100,57 @@ export function createRoadVehicleMaterial(
   });
   material.name = name;
   material.dithering = true;
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = `attribute vec3 atlasSurface;\nattribute vec4 atlasWheel;\nattribute float atlasTravel;\nvarying vec3 vAtlasSurface;\n${shader.vertexShader}`;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <beginnormal_vertex>',
+      `#include <beginnormal_vertex>
+      if (atlasWheel.w > 0.0) {
+        float angle = -atlasTravel / atlasWheel.w;
+        objectNormal.yz = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * objectNormal.yz;
+      }`,
+    );
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      vAtlasSurface = atlasSurface;
+      if (atlasWheel.w > 0.0) {
+        float angle = -atlasTravel / atlasWheel.w;
+        transformed.yz = mat2(cos(angle), sin(angle), -sin(angle), cos(angle)) * (transformed.yz - atlasWheel.yz) + atlasWheel.yz;
+      }`,
+    );
+    shader.fragmentShader = `varying vec3 vAtlasSurface;\n${shader.fragmentShader}`;
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <roughnessmap_fragment>',
+        '#include <roughnessmap_fragment>\nroughnessFactor = vAtlasSurface.x;',
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        '#include <metalnessmap_fragment>\nmetalnessFactor = vAtlasSurface.y;',
+      )
+      .replace(
+        '#include <lights_physical_fragment>',
+        '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\nmaterial.clearcoat = vAtlasSurface.z;\n#endif',
+      );
+  };
+  material.customProgramCacheKey = () => 'atlas-vehicle-surfaces-and-wheel-travel-v1';
   return material;
 }
 
 const vehicleMaterial = createRoadVehicleMaterial('street-leonida/vehicle/shared-moving-pbr');
+
+function surfaceFor(part: VehiclePart): Vec3 {
+  if (part.layer === 'paint') return [0.32, 0.38, 0.82];
+  if ([0x173445, 0x183949].includes(part.color)) return [0.12, 0.05, 0.7];
+  if ([0x111419, 0x111317, 0x17191c, 0x171b20, 0x382c31, 0x31383d].includes(part.color))
+    return [0.84, 0, 0];
+  if ([0x9ca7aa, 0xaeb8ba, 0x879194, 0xb4bec2, 0x626b70, 0xa9b2b3, 0x41494d].includes(part.color))
+    return [0.3, 0.86, 0.08];
+  if ([0xfff2c4, 0xd92c32, 0xffa31a, 0xc51f2b, 0xff9f1c, 0xffe1a3].includes(part.color))
+    return [0.22, 0.05, 0.45];
+  return [0.8, 0, 0];
+}
 
 function coloredPart(part: VehiclePart): THREE.BufferGeometry {
   const geometry = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
@@ -121,6 +169,15 @@ function coloredPart(part: VehiclePart): THREE.BufferGeometry {
     colors[index * 3 + 2] = color.b;
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const surfaces = new Float32Array(positions.count * 3);
+  const wheels = new Float32Array(positions.count * 4);
+  const surface = surfaceFor(part);
+  for (let index = 0; index < positions.count; index++) {
+    surfaces.set(surface, index * 3);
+    if (part.wheel) wheels.set(part.wheel, index * 4);
+  }
+  geometry.setAttribute('atlasSurface', new THREE.BufferAttribute(surfaces, 3));
+  geometry.setAttribute('atlasWheel', new THREE.BufferAttribute(wheels, 4));
   return geometry;
 }
 
@@ -140,7 +197,18 @@ function mergeVehicle(
   name: string,
   material: THREE.MeshPhysicalMaterial = vehicleMaterial,
 ): THREE.Group {
-  const mesh = new THREE.Mesh(mergePartGeometry(parts), material);
+  const geometry = mergePartGeometry(parts);
+  const minY = geometry.boundingBox?.min.y ?? 0;
+  if (minY < -0.001) {
+    geometry.translate(0, -minY, 0);
+    const pivots = geometry.getAttribute('atlasWheel');
+    for (let index = 0; index < pivots.count; index++) {
+      if (pivots.getW(index) > 0) pivots.setY(index, pivots.getY(index) - minY);
+    }
+  }
+  geometry.setAttribute('atlasTravel', new THREE.InstancedBufferAttribute(new Float32Array(1), 1));
+  const mesh = new THREE.InstancedMesh(geometry, material, 1);
+  mesh.setMatrixAt(0, new THREE.Matrix4());
   mesh.name = `${name}-mesh`;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -166,6 +234,7 @@ function roadWheelParts(
           scale: [wheelRadius * 2, 0.32, wheelRadius * 2],
           rotation: [0, 0, Math.PI / 2],
           layer: 'detail',
+          wheel: [x * 1.015, wheelRadius, z, wheelRadius],
         },
         {
           geometry: wheel,
@@ -174,6 +243,7 @@ function roadWheelParts(
           scale: [wheelRadius * 1.06, 0.34, wheelRadius * 1.06],
           rotation: [0, 0, Math.PI / 2],
           layer: 'detail',
+          wheel: [x * 1.025, wheelRadius, z, wheelRadius],
         },
         {
           geometry: cylinder,
@@ -182,8 +252,20 @@ function roadWheelParts(
           scale: [wheelRadius * 0.3, 0.36, wheelRadius * 0.3],
           rotation: [0, 0, Math.PI / 2],
           layer: 'detail',
+          wheel: [x * 1.034, wheelRadius, z, wheelRadius],
         },
       );
+      for (let spoke = 0; spoke < 5; spoke++) {
+        result.push({
+          geometry: box,
+          color: 0xaeb8ba,
+          position: [x * 1.034, wheelRadius, z],
+          scale: [0.365, wheelRadius * 1.45, 0.045],
+          rotation: [(spoke * Math.PI) / 5, 0, 0],
+          layer: 'detail',
+          wheel: [x * 1.034, wheelRadius, z, wheelRadius],
+        });
+      }
     }
   }
   return result;
@@ -196,7 +278,14 @@ function painted(
   scale: Vec3,
   rotation?: Vec3,
 ): VehiclePart {
-  return { geometry, color, position, scale, ...(rotation ? { rotation } : {}), layer: 'paint' };
+  return {
+    geometry,
+    color,
+    position,
+    scale,
+    ...(rotation ? { rotation } : {}),
+    layer: 'paint',
+  };
 }
 
 function addWheelArchFenders(
@@ -287,6 +376,74 @@ function addCabin(
       layer: 'detail',
     });
   }
+}
+
+function sedanCoachwork(
+  width: number,
+  length: number,
+  wheelPositions: readonly number[],
+  radius: number,
+): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const sections = 32;
+  const ringSize = 10;
+  for (let section = 0; section <= sections; section++) {
+    const t = section / sections;
+    const z = (t - 0.5) * length * 1.03;
+    const endTaper = 1 - 0.07 * Math.pow(Math.abs(t - 0.5) * 2, 5);
+    const halfWidth = (width / 2) * endTaper;
+    const crown = 0.88 + 0.115 * Math.sin(t * Math.PI);
+    let sill = 0.42;
+    for (const wheelZ of wheelPositions) {
+      const distance = Math.abs(z - wheelZ);
+      const arch = radius + 0.095;
+      if (distance < arch)
+        sill = Math.max(sill, radius + Math.sqrt(arch * arch - distance * distance));
+    }
+    sill = Math.min(crown - 0.035, sill);
+    const ring: readonly [number, number][] = [
+      [-halfWidth * 0.93, sill],
+      [-halfWidth, sill + 0.025],
+      [-halfWidth, crown - 0.085],
+      [-halfWidth * 0.91, crown - 0.012],
+      [-halfWidth * 0.7, crown],
+      [halfWidth * 0.7, crown],
+      [halfWidth * 0.91, crown - 0.012],
+      [halfWidth, crown - 0.085],
+      [halfWidth, sill + 0.025],
+      [halfWidth * 0.93, sill],
+    ];
+    for (const [x, y] of ring) positions.push(x, y, z);
+    if (section === 0) continue;
+    const previous = (section - 1) * ringSize;
+    const current = section * ringSize;
+    for (let side = 0; side < ringSize; side++) {
+      const next = (side + 1) % ringSize;
+      indices.push(
+        previous + side,
+        current + side,
+        previous + next,
+        previous + next,
+        current + side,
+        current + next,
+      );
+    }
+  }
+  for (let side = 1; side < ringSize - 1; side++) {
+    indices.push(0, side, side + 1);
+    const end = sections * ringSize;
+    indices.push(end, end + side + 1, end + side);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(new Float32Array((positions.length / 3) * 2), 2),
+  );
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 function roadVehicleParts(color: number, type: RoadVehicleType): VehiclePart[] {
@@ -388,32 +545,36 @@ function roadVehicleParts(color: number, type: RoadVehicleType): VehiclePart[] {
       ];
   const parts: VehiclePart[] = [
     painted(
-      roundedBox,
+      isLowRoadSedan ? sedanCoachwork(width, length, wheelPositions, wheelRadius) : roundedBox,
       color,
-      [0, isLowRoadSedan ? 0.66 : 0.7, 0],
-      [width, isLowRoadSedan ? 0.48 : 0.56, length],
+      isLowRoadSedan ? [0, 0, 0] : [0, 0.7, 0],
+      isLowRoadSedan ? [1, 1, 1] : [width, 0.56, length],
     ),
-    painted(
-      lowHood,
-      color,
-      [0, isLowRoadSedan ? 0.955 : 1.01, -length * (isLowRoadSedan ? 0.355 : 0.38)],
-      [
-        width * (isLowRoadSedan ? 0.91 : 0.93),
-        isLowRoadSedan ? 0.21 : isHeavy ? 0.34 : 0.29,
-        length * (isLowRoadSedan ? 0.3 : isHeavy ? 0.2 : 0.24),
-      ],
-      [isLowRoadSedan ? -0.025 : -0.045, 0, 0],
-    ),
-    painted(
-      isLowRoadSedan ? taperedDeck : softBox,
-      color,
-      [0, isLowRoadSedan ? 0.945 : 0.98, length * (isLowRoadSedan ? 0.372 : 0.42)],
-      [
-        width * (isLowRoadSedan ? 0.91 : 0.95),
-        isLowRoadSedan ? 0.19 : 0.2,
-        length * (isLowRoadSedan ? 0.255 : 0.14),
-      ],
-    ),
+    ...(!isLowRoadSedan
+      ? [
+          painted(
+            lowHood,
+            color,
+            [0, isLowRoadSedan ? 0.955 : 1.01, -length * (isLowRoadSedan ? 0.355 : 0.38)],
+            [
+              width * (isLowRoadSedan ? 0.91 : 0.93),
+              isLowRoadSedan ? 0.21 : isHeavy ? 0.34 : 0.29,
+              length * (isLowRoadSedan ? 0.3 : isHeavy ? 0.2 : 0.24),
+            ],
+            [isLowRoadSedan ? -0.025 : -0.045, 0, 0],
+          ),
+          painted(
+            isLowRoadSedan ? taperedDeck : softBox,
+            color,
+            [0, isLowRoadSedan ? 0.945 : 0.98, length * (isLowRoadSedan ? 0.372 : 0.42)],
+            [
+              width * (isLowRoadSedan ? 0.91 : 0.95),
+              isLowRoadSedan ? 0.19 : 0.2,
+              length * (isLowRoadSedan ? 0.255 : 0.14),
+            ],
+          ),
+        ]
+      : []),
     ...endParts,
     ...roadWheelParts(wheelPositions, width, wheelRadius),
   ];
@@ -762,6 +923,10 @@ function populateInstances(
   colors: boolean,
 ): void {
   const dummy = new THREE.Object3D();
+  mesh.geometry.setAttribute(
+    'atlasTravel',
+    new THREE.InstancedBufferAttribute(new Float32Array(instances.length), 1),
+  );
   instances.forEach((instance, index) => {
     dummy.position.set(...instance.position);
     dummy.rotation.set(0, instance.rotationY ?? 0, 0);
@@ -774,6 +939,21 @@ function populateInstances(
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingBox();
   mesh.computeBoundingSphere();
+}
+
+/** Arc length in metres, independent per mover and shared across its wheel vertices. */
+export function setRoadVehicleTravelDistance(
+  vehicle: THREE.Object3D,
+  distanceMetres: number,
+): void {
+  if (!Number.isFinite(distanceMetres)) return;
+  vehicle.traverse((object) => {
+    if (!(object instanceof THREE.InstancedMesh) || object.count !== 1) return;
+    const attribute = object.geometry.getAttribute('atlasTravel');
+    if (!(attribute instanceof THREE.InstancedBufferAttribute)) return;
+    attribute.setX(0, distanceMetres / Math.max(0.001, Math.abs(vehicle.scale.x)));
+    attribute.needsUpdate = true;
+  });
 }
 
 export function createRoadVehicleBatch(
@@ -820,6 +1000,23 @@ function limb(color: number, position: Vec3, scale: Vec3, rotation: Vec3): Vehic
   return { geometry: cylinder, color, position, scale, rotation };
 }
 
+function connectedLimb(color: number, start: Vec3, end: Vec3, radius: number): VehiclePart {
+  const a = new THREE.Vector3(...start);
+  const b = new THREE.Vector3(...end);
+  const direction = b.clone().sub(a);
+  const length = direction.length();
+  const rotation = new THREE.Euler().setFromQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()),
+  );
+  const centre = a.add(b).multiplyScalar(0.5);
+  return limb(
+    color,
+    [centre.x, centre.y, centre.z],
+    [radius * 2, length, radius * 2],
+    [rotation.x, rotation.y, rotation.z],
+  );
+}
+
 export function createMotorcycle(
   color: number,
   type: MotorcycleType = 'cruiser',
@@ -847,8 +1044,9 @@ export function createMotorcycle(
         geometry: torus,
         color: 0x111317,
         position: [0, wheelRadius, z],
-        scale: [wheelRadius * 2, wheelRadius * 2, cruiser ? 0.76 : 0.64],
+        scale: [wheelRadius / 0.62, wheelRadius / 0.62, cruiser ? 0.76 : 0.64],
         rotation: [0, Math.PI / 2, 0],
+        wheel: [0, wheelRadius, z, wheelRadius],
       },
       {
         geometry: cylinder,
@@ -856,6 +1054,7 @@ export function createMotorcycle(
         position: [0, wheelRadius, z],
         scale: [0.16, 0.32, 0.16],
         rotation: [0, 0, Math.PI / 2],
+        wheel: [0, wheelRadius, z, wheelRadius],
       },
       {
         geometry: cylinder,
@@ -863,6 +1062,7 @@ export function createMotorcycle(
         position: [0, wheelRadius, z],
         scale: [0.25, 0.055, 0.25],
         rotation: [0, 0, Math.PI / 2],
+        wheel: [0, wheelRadius, z, wheelRadius],
       },
     );
     for (const angle of [0, Math.PI / 3, (Math.PI * 2) / 3]) {
@@ -872,6 +1072,7 @@ export function createMotorcycle(
         position: [0, wheelRadius, z],
         scale: [0.055, wheelRadius * 1.42, 0.055],
         rotation: [angle, 0, 0],
+        wheel: [0, wheelRadius, z, wheelRadius],
       });
     }
   }
@@ -888,6 +1089,7 @@ export function createMotorcycle(
       color,
       position: [0, frameY + 0.23, -0.18],
       scale: [0.65, 0.48, 0.75],
+      layer: 'paint',
     },
     {
       geometry: box,
@@ -924,6 +1126,7 @@ export function createMotorcycle(
       position: [0, wheelRadius + 0.27, -wheelZ],
       scale: [0.34, 0.1, cruiser ? 0.6 : 0.76],
       rotation: [cruiser ? 0.04 : -0.12, 0, 0],
+      layer: 'paint',
     },
     {
       geometry: box,
@@ -966,7 +1169,7 @@ export function createMotorcycle(
       color: leather,
       position: [0, riderY, 0.28],
       scale: [0.56, 0.82, 0.56],
-      rotation: [0.13, 0, 0],
+      rotation: [-0.13, 0, 0],
     },
     {
       geometry: sphere,
@@ -981,10 +1184,24 @@ export function createMotorcycle(
       scale: [0.42, 0.16, 0.075],
       rotation: [-0.1, 0, 0],
     },
-    limb(skin, [-0.3, riderY + 0.08, -0.12], [0.13, 0.78, 0.13], [-0.65, 0, -0.32]),
-    limb(skin, [0.3, riderY + 0.08, -0.12], [0.13, 0.78, 0.13], [-0.65, 0, 0.32]),
-    limb(leather, [-0.21, 0.91, 0.48], [0.16, 0.94, 0.16], [-0.48, 0, -0.12]),
-    limb(leather, [0.21, 0.91, 0.48], [0.16, 0.94, 0.16], [-0.48, 0, 0.12]),
+    ...[-1, 1].flatMap((side) => [
+      connectedLimb(skin, [side * 0.265, riderY + 0.24, 0.02], [side * 0.39, 1.4, -0.32], 0.067),
+      connectedLimb(skin, [side * 0.39, 1.4, -0.32], [side * 0.46, 1.22, -0.64], 0.055),
+      connectedLimb(leather, [side * 0.2, frameY + 0.29, 0.42], [side * 0.36, 0.7, -0.04], 0.088),
+      connectedLimb(leather, [side * 0.36, 0.7, -0.04], [side * 0.43, 0.28, 0.16], 0.067),
+      {
+        geometry: box,
+        color: leather,
+        position: [side * 0.46, 1.22, -0.64] as Vec3,
+        scale: [0.105, 0.085, 0.1] as Vec3,
+      },
+      {
+        geometry: box,
+        color: leather,
+        position: [side * 0.43, 0.24, 0.075] as Vec3,
+        scale: [0.14, 0.11, 0.28] as Vec3,
+      },
+    ]),
   );
   if (cruiser) {
     parts.push({

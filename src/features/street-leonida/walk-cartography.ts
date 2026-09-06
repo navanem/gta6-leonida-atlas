@@ -4,6 +4,13 @@ import * as THREE from 'three';
 import { gtadbToWorld, WORLD_METRES_PER_GTADB_UNIT, worldToGtadb } from './leonida-coordinates';
 import { ALL_LOCATION_ANCHORS, getLeonidaZoneProfile, PLACE_ENTRY_VIEWS } from './walk-geography';
 import type { AxisAlignedRectangle, WalkPoint } from './walk-engine';
+import { extractRasterBuildingFootprints, type RasterBuildingFootprint } from './walk-footprints';
+import {
+  createBuildingFabricKit,
+  type BuildingFabric,
+  type FabricBuilding,
+} from './walk-building-fabric';
+import { simplifyRoadEdges, sampleRoadFixtures } from './walk-road-geometry';
 
 export interface GtadbGroundTileAddress {
   readonly z: 5;
@@ -11,12 +18,7 @@ export interface GtadbGroundTileAddress {
   readonly y: number;
 }
 
-export interface GtadbBuildingFootprint {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
+export type GtadbBuildingFootprint = RasterBuildingFootprint;
 
 export type GtadbSurfaceClass =
   | 'ink'
@@ -34,6 +36,7 @@ export interface GtadbRoadEdgeSegment {
   readonly y: number;
   readonly length: number;
   readonly rotation: number;
+  readonly pathId?: number;
 }
 
 export interface GtadbGroundTileStream {
@@ -105,6 +108,21 @@ export function getGtadbFootprintWorldBounds(
   footprint: GtadbBuildingFootprint,
 ): { minX: number; maxX: number; minZ: number; maxZ: number } {
   const tileBounds = getGtadbTileWorldBounds(tile);
+  const oriented = footprint.oriented;
+  if (oriented) {
+    const c = Math.abs(Math.cos(oriented.rotation)),
+      s = Math.abs(Math.sin(oriented.rotation));
+    const halfX = ((oriented.width * c + oriented.depth * s) * WORLD_METRES_PER_GTADB_UNIT) / 2;
+    const halfZ = ((oriented.width * s + oriented.depth * c) * WORLD_METRES_PER_GTADB_UNIT) / 2;
+    const x = tileBounds.minX + oriented.centerX * WORLD_METRES_PER_GTADB_UNIT;
+    const z = tileBounds.minZ + oriented.centerY * WORLD_METRES_PER_GTADB_UNIT;
+    return {
+      minX: x - halfX,
+      maxX: x + halfX,
+      minZ: z - halfZ,
+      maxZ: z + halfZ,
+    };
+  }
   return {
     minX: tileBounds.minX + footprint.x * WORLD_METRES_PER_GTADB_UNIT,
     maxX: tileBounds.minX + (footprint.x + footprint.width) * WORLD_METRES_PER_GTADB_UNIT,
@@ -151,107 +169,12 @@ export function doesGtadbFootprintOverlapProtectedArrival(
   );
 }
 
-function isBuildingFillPixel(pixels: Uint8Array | Uint8ClampedArray, offset: number): boolean {
-  const red = pixels[offset] ?? 0;
-  const green = pixels[offset + 1] ?? 0;
-  const blue = pixels[offset + 2] ?? 0;
-  const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
-  const lightness = (red + green + blue) / 3;
-  return spread <= 12 && lightness >= 158 && lightness <= 197;
-}
-
-export function extractGtadbBuildingFootprints(
-  pixels: Uint8Array | Uint8ClampedArray,
-  width: number,
-  height: number,
-  channels = 4,
-): GtadbBuildingFootprint[] {
-  if (width <= 0 || height <= 0 || channels < 3) return [];
-  const total = width * height;
-  const mask = new Uint8Array(total);
-  const visited = new Uint8Array(total);
-  for (let pixel = 0; pixel < total; pixel += 1) {
-    mask[pixel] = Number(isBuildingFillPixel(pixels, pixel * channels));
-  }
-
-  const candidates: Array<GtadbBuildingFootprint & { area: number }> = [];
-  const queue = new Int32Array(total);
-  for (let start = 0; start < total; start += 1) {
-    if (!mask[start] || visited[start]) continue;
-    let queueStart = 0;
-    let queueEnd = 1;
-    queue[0] = start;
-    visited[start] = 1;
-    let area = 0;
-    let minX = width;
-    let maxX = 0;
-    let minY = height;
-    let maxY = 0;
-
-    while (queueStart < queueEnd) {
-      const pixel = queue[queueStart++] ?? 0;
-      const x = pixel % width;
-      const y = Math.floor(pixel / width);
-      area += 1;
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-      const neighbors = [pixel - 1, pixel + 1, pixel - width, pixel + width];
-      for (const neighbor of neighbors) {
-        if (neighbor < 0 || neighbor >= total || visited[neighbor] || !mask[neighbor]) continue;
-        if (Math.abs((neighbor % width) - x) > 1) continue;
-        visited[neighbor] = 1;
-        queue[queueEnd++] = neighbor;
-      }
-    }
-
-    const footprintWidth = maxX - minX + 1;
-    const footprintHeight = maxY - minY + 1;
-    const fillRatio = area / (footprintWidth * footprintHeight);
-    if (
-      area >= 24 &&
-      footprintWidth >= 4 &&
-      footprintHeight >= 4 &&
-      footprintWidth <= 96 &&
-      footprintHeight <= 96 &&
-      fillRatio >= 0.34
-    ) {
-      candidates.push({ x: minX, y: minY, width: footprintWidth, height: footprintHeight, area });
-    }
-  }
-
-  const kept: GtadbBuildingFootprint[] = [];
-  for (const candidate of candidates.sort(
-    (left, right) => right.width * right.height - left.width * left.height,
-  )) {
-    const covered = kept.some((existing) => {
-      const intersectionWidth = Math.max(
-        0,
-        Math.min(candidate.x + candidate.width, existing.x + existing.width) -
-          Math.max(candidate.x, existing.x),
-      );
-      const intersectionHeight = Math.max(
-        0,
-        Math.min(candidate.y + candidate.height, existing.y + existing.height) -
-          Math.max(candidate.y, existing.y),
-      );
-      return (intersectionWidth * intersectionHeight) / (candidate.width * candidate.height) >= 0.6;
-    });
-    if (!covered) {
-      kept.push({
-        x: candidate.x,
-        y: candidate.y,
-        width: candidate.width,
-        height: candidate.height,
-      });
-    }
-  }
-  return kept;
-}
+export const extractGtadbBuildingFootprints = extractRasterBuildingFootprints;
 
 export function getGtadbTileUrl(tile: GtadbGroundTileAddress): string {
-  return publicPath(`assets/street-leonida/maps/gtadb-yanis-16-z5/${tile.z},${tile.y},${tile.x}.jpg`);
+  return publicPath(
+    `assets/street-leonida/maps/gtadb-yanis-16-z5/${tile.z},${tile.y},${tile.x}.jpg`,
+  );
 }
 
 export function listGtadbGroundTiles(
@@ -367,7 +290,12 @@ export function extractGtadbRoadEdgeSegments(
         });
       }
       if (!isRoadCell(column, row - 1)) {
-        edges.push({ x: minX + cellWidth / 2, y: minY, length: cellWidth, rotation: 0 });
+        edges.push({
+          x: minX + cellWidth / 2,
+          y: minY,
+          length: cellWidth,
+          rotation: 0,
+        });
       }
       if (!isRoadCell(column, row + 1)) {
         edges.push({
@@ -382,99 +310,10 @@ export function extractGtadbRoadEdgeSegments(
   return edges;
 }
 
-const BUILDING_PALETTES: Readonly<Record<string, readonly number[]>> = {
-  'Vice City': [0xe8e3d8, 0xcdd5d7, 0xd5b5aa, 0xa9bdc2, 0xf0eee6],
-  'Port Gellhorn': [0x988c7e, 0xb7a38d, 0x77838a, 0xb58b78],
-  Ambrosia: [0xb9a17d, 0x95775d, 0x9b9c91, 0xc2b38e],
-  'Leonida Keys': [0xe3ddca, 0xb7c9c0, 0xd0b990, 0xe7e5db],
-  Grassrivers: [0x766c55, 0x8b8874, 0x655f50],
-  'Mount Kalaga': [0x796e5b, 0x8c8d82, 0x685e4f],
-};
-
-export function createGtadbBuildingFacadeTexture(): THREE.DataTexture {
-  const size = 128;
-  const pixels = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const offset = (y * size + x) * 4;
-      const localX = x % 16;
-      const localY = y % 16;
-      const column = Math.floor(x / 16);
-      const row = Math.floor(y / 16);
-      const window = localX >= 3 && localX <= 12 && localY >= 4 && localY <= 13;
-      const mullion = window && (localX === 7 || localX === 8);
-      const reflection = window && localY === 5 && localX >= 4 && localX <= 11;
-      const litWindow = window && !mullion && (column * 7 + row * 11) % 13 === 0;
-      const panelJoint = localX === 0 || localY === 0;
-      const concreteNoise = (x * 17 + y * 31) % 9;
-
-      let red = 207 + concreteNoise;
-      let green = 211 + concreteNoise;
-      let blue = 209 + concreteNoise;
-      if (panelJoint) {
-        red = 164;
-        green = 170;
-        blue = 169;
-      } else if (mullion) {
-        red = 19;
-        green = 27;
-        blue = 33;
-      } else if (litWindow) {
-        red = 232;
-        green = 154;
-        blue = 84;
-      } else if (reflection) {
-        red = 64;
-        green = 104;
-        blue = 132;
-      } else if (window) {
-        red = 27;
-        green = 52;
-        blue = 73;
-      }
-
-      pixels[offset] = red;
-      pixels[offset + 1] = green;
-      pixels[offset + 2] = blue;
-      pixels[offset + 3] = 255;
-    }
-  }
-  const texture = new THREE.DataTexture(pixels, size, size, THREE.RGBAFormat);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
-  return texture;
-}
-
-export function createGtadbBuildingEmissiveTexture(): THREE.DataTexture {
-  const size = 128;
-  const pixels = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const offset = (y * size + x) * 4;
-      const localX = x % 16;
-      const localY = y % 16;
-      const column = Math.floor(x / 16);
-      const row = Math.floor(y / 16);
-      const windowInterior =
-        localX >= 3 && localX <= 12 && localX !== 7 && localX !== 8 && localY >= 4 && localY <= 13;
-      const lit = windowInterior && (column * 7 + row * 11) % 13 === 0;
-      const value = lit ? 255 : 0;
-      pixels[offset] = value;
-      pixels[offset + 1] = value;
-      pixels[offset + 2] = value;
-      pixels[offset + 3] = 255;
-    }
-  }
-  const texture = new THREE.DataTexture(pixels, size, size, THREE.RGBAFormat);
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
-  return texture;
-}
+export {
+  createBuildingFacadeTexture as createGtadbBuildingFacadeTexture,
+  createBuildingEmissiveTexture as createGtadbBuildingEmissiveTexture,
+} from './walk-building-fabric';
 
 export function getGtadbBuildingDetailLevels(height: number): number[] {
   if (!Number.isFinite(height) || height < 16) return [];
@@ -492,28 +331,6 @@ function deterministicUnit(...values: number[]): number {
     state = Math.imul(state, 16777619);
   }
   return (state >>> 0) / 4294967295;
-}
-
-function buildingHeight(
-  regionName: string,
-  footprint: GtadbBuildingFootprint,
-  tile: GtadbGroundTileAddress,
-): number {
-  const random = deterministicUnit(tile.x, tile.y, footprint.x, footprint.y);
-  const footprintScale = Math.sqrt(footprint.width * footprint.height);
-  if (regionName === 'Vice City') {
-    const tower = random > 0.88 ? 42 + random * 68 : 0;
-    return tower || THREE.MathUtils.clamp(7 + footprintScale * 0.28 + random * 18, 7, 36);
-  }
-  if (regionName === 'Ambrosia') {
-    return random > 0.94
-      ? 24 + random * 18
-      : THREE.MathUtils.clamp(4 + footprintScale * 0.2 + random * 7, 4, 17);
-  }
-  if (regionName === 'Port Gellhorn') return 3.6 + random * 7.4;
-  if (regionName === 'Leonida Keys') return 3.8 + random * 8.2;
-  if (regionName === 'Mount Kalaga') return 3.4 + random * 6.6;
-  return 3.2 + random * 5.8;
 }
 
 function readTilePixels(texture: THREE.Texture): ImageData | null {
@@ -575,9 +392,42 @@ function createStyledGroundTexture(imageData: ImageData, anisotropy: number): TH
   return texture;
 }
 
+function createRoadPalmCrownGeometry(): THREE.BufferGeometry {
+  const vertices: number[] = [],
+    indices: number[] = [];
+  const radii = [0, 0.75, 1.65, 2.5, 3.05];
+  const heights = [0.15, 0.8, 0.62, 0.02, -0.8];
+  const widths = [0.035, 0.24, 0.36, 0.22, 0.012];
+  for (let frond = 0; frond < 9; frond++) {
+    const angle = (frond * Math.PI * 2) / 9,
+      c = Math.cos(angle),
+      s = Math.sin(angle);
+    const first = vertices.length / 3;
+    for (let station = 0; station < radii.length; station++) {
+      for (const side of [-1, 1])
+        vertices.push(
+          c * radii[station]! - s * widths[station]! * side,
+          heights[station]! + (frond % 3) * 0.07,
+          s * radii[station]! + c * widths[station]! * side,
+        );
+      if (station > 0) {
+        const a = first + (station - 1) * 2;
+        indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 export function createGtadbGroundTileStream(options: {
   readonly radius: number;
   readonly anisotropy: number;
+  readonly detail?: 'desktop' | 'mobile';
+  readonly detailDistance?: number;
 }): GtadbGroundTileStream {
   const root = new THREE.Group();
   root.name = 'street-leonida/gtadb-ground-cartography';
@@ -588,43 +438,18 @@ export function createGtadbGroundTileStream(options: {
 
   const geometry = new THREE.PlaneGeometry(GTADB_TILE_WORLD_SIZE, GTADB_TILE_WORLD_SIZE);
   geometry.rotateX(-Math.PI / 2);
-  const buildingGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const buildingDetailGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const fabricKit = createBuildingFabricKit();
+  const detail = options.detail ?? 'desktop';
+  const detailDistance = Math.max(100, options.detailDistance ?? (detail === 'mobile' ? 220 : 300));
   const curbGeometry = new THREE.BoxGeometry(1, 0.16, 0.28);
   const lampPoleGeometry = new THREE.CylinderGeometry(0.08, 0.11, 4.8, 7);
   const lampHeadGeometry = new THREE.BoxGeometry(0.6, 0.16, 0.22);
   const palmTrunkGeometry = new THREE.CylinderGeometry(0.12, 0.2, 5.8, 7);
-  const palmCrownGeometry = new THREE.ConeGeometry(1.35, 0.65, 7);
-  const buildingFacadeTexture = createGtadbBuildingFacadeTexture();
-  const buildingEmissiveTexture = createGtadbBuildingEmissiveTexture();
-  const buildingMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    map: buildingFacadeTexture,
-    emissive: 0xffb36b,
-    emissiveMap: buildingEmissiveTexture,
-    emissiveIntensity: 0.28,
-    roughness: 0.7,
-    metalness: 0.08,
-    envMapIntensity: 1.08,
+  const palmCrownGeometry = createRoadPalmCrownGeometry();
+  const curbMaterial = new THREE.MeshStandardMaterial({
+    color: 0x706d67,
+    roughness: 1,
   });
-  const balconyMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6f7d80,
-    roughness: 0.56,
-    metalness: 0.22,
-  });
-  const lobbyMaterial = new THREE.MeshStandardMaterial({
-    color: 0x16485b,
-    emissive: 0x0b2935,
-    emissiveIntensity: 0.54,
-    roughness: 0.22,
-    metalness: 0.38,
-  });
-  const rooftopMaterial = new THREE.MeshStandardMaterial({
-    color: 0x747a78,
-    roughness: 0.76,
-    metalness: 0.18,
-  });
-  const curbMaterial = new THREE.MeshStandardMaterial({ color: 0x706d67, roughness: 1 });
   const lampPoleMaterial = new THREE.MeshStandardMaterial({
     color: 0x29323a,
     roughness: 0.48,
@@ -636,12 +461,18 @@ export function createGtadbGroundTileStream(options: {
     emissiveIntensity: 1.8,
     roughness: 0.28,
   });
-  const palmTrunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6f4b32, roughness: 1 });
-  const palmCrownMaterial = new THREE.MeshStandardMaterial({ color: 0x276b44, roughness: 0.92 });
+  const palmTrunkMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6f4b32,
+    roughness: 1,
+  });
+  const palmCrownMaterial = new THREE.MeshStandardMaterial({
+    color: 0x426b3f,
+    roughness: 0.92,
+    side: THREE.DoubleSide,
+  });
   const loader = new THREE.TextureLoader();
   const meshes = new Map<string, THREE.Mesh>();
-  const buildingMeshes = new Map<string, THREE.InstancedMesh>();
-  const buildingDetailGroups = new Map<string, THREE.Group>();
+  const buildingFabrics = new Map<string, BuildingFabric>();
   const roadDetailGroups = new Map<string, THREE.Group>();
   const roadSegments = new Map<string, readonly GtadbRoadEdgeSegment[]>();
   const buildingFootprints = new Map<string, readonly GtadbBuildingFootprint[]>();
@@ -649,17 +480,18 @@ export function createGtadbGroundTileStream(options: {
   const collisions: AxisAlignedRectangle[] = [];
   let centerKey = '';
   let currentCenter: GtadbGroundTileAddress | null = null;
+  let currentPosition: WalkPoint | null = null;
   let protectedArrival: WalkPoint | null = null;
   let disposed = false;
 
   const refreshBuildingStats = (): void => {
     collisions.splice(0, collisions.length, ...[...collisionGroups.values()].flat());
-    root.userData.buildingCount = [...buildingMeshes.values()].reduce(
-      (count, mesh) => count + mesh.count,
+    root.userData.buildingCount = [...buildingFabrics.values()].reduce(
+      (count, fabric) => count + fabric.buildingCount,
       0,
     );
-    root.userData.buildingDetailCount = [...buildingDetailGroups.values()].reduce(
-      (count, group) => count + Number(group.userData.detailCount ?? 0),
+    root.userData.buildingDetailCount = [...buildingFabrics.values()].reduce(
+      (count, fabric) => count + fabric.detailCount,
       0,
     );
   };
@@ -671,18 +503,8 @@ export function createGtadbGroundTileStream(options: {
   };
 
   const removeBuildings = (key: string): void => {
-    const buildings = buildingMeshes.get(key);
-    if (buildings) {
-      disposeInstancedMeshBuffers(buildings);
-      buildings.removeFromParent();
-    }
-    buildingMeshes.delete(key);
-    const buildingDetails = buildingDetailGroups.get(key);
-    if (buildingDetails) {
-      disposeInstancedMeshBuffers(buildingDetails);
-      buildingDetails.removeFromParent();
-    }
-    buildingDetailGroups.delete(key);
+    buildingFabrics.get(key)?.dispose();
+    buildingFabrics.delete(key);
     collisionGroups.delete(key);
     refreshBuildingStats();
   };
@@ -730,7 +552,7 @@ export function createGtadbGroundTileStream(options: {
         0.07,
         tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT,
       );
-      dummy.rotation.set(0, segment.rotation, 0);
+      dummy.rotation.set(0, -segment.rotation, 0);
       dummy.scale.set(segment.length * WORLD_METRES_PER_GTADB_UNIT, 1, 1);
       dummy.updateMatrix();
       curbs.setMatrixAt(index, dummy.matrix);
@@ -740,14 +562,14 @@ export function createGtadbGroundTileStream(options: {
     curbs.receiveShadow = true;
     group.add(curbs);
 
-    const fixtures = includeFurniture ? segments.filter((_, index) => index % 24 === 0) : [];
+    const fixtures = includeFurniture ? sampleRoadFixtures(segments, 48) : [];
     if (fixtures.length > 0) {
       const poles = new THREE.InstancedMesh(lampPoleGeometry, lampPoleMaterial, fixtures.length);
       const heads = new THREE.InstancedMesh(lampHeadGeometry, lampHeadMaterial, fixtures.length);
       fixtures.forEach((segment, index) => {
         const x = tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT;
         const z = tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT;
-        dummy.rotation.set(0, segment.rotation, 0);
+        dummy.rotation.set(0, -segment.rotation, 0);
         dummy.scale.set(1, 1, 1);
         dummy.position.set(x, 2.48, z);
         dummy.updateMatrix();
@@ -763,7 +585,11 @@ export function createGtadbGroundTileStream(options: {
       group.add(poles, heads);
     }
 
-    const palms = includeFurniture ? segments.filter((_, index) => index % 41 === 0) : [];
+    const region = getLeonidaZoneProfile(getGtadbTileWorldCenter(tile)).name;
+    const palms =
+      includeFurniture && ['Vice City', 'Leonida Keys', 'Port Gellhorn'].includes(region)
+        ? sampleRoadFixtures(segments, 68)
+        : [];
     if (palms.length > 0) {
       const trunks = new THREE.InstancedMesh(palmTrunkGeometry, palmTrunkMaterial, palms.length);
       const crowns = new THREE.InstancedMesh(palmCrownGeometry, palmCrownMaterial, palms.length);
@@ -803,15 +629,27 @@ export function createGtadbGroundTileStream(options: {
     }
   };
 
+  const hasCloseDetail = (tile: GtadbGroundTileAddress): boolean => {
+    if (!currentPosition) return false;
+    const bounds = getGtadbTileWorldBounds(tile);
+    const dx = Math.max(bounds.minX - currentPosition.x, 0, currentPosition.x - bounds.maxX);
+    const dz = Math.max(bounds.minZ - currentPosition.z, 0, currentPosition.z - bounds.maxZ);
+    return Math.hypot(dx, dz) <= detailDistance;
+  };
+  const syncBuildingDetails = (): void => {
+    for (const [key, fabric] of buildingFabrics) {
+      const tile = meshes.get(key)?.userData.tile as GtadbGroundTileAddress | undefined;
+      if (tile) fabric.setDetail(hasCloseDetail(tile));
+    }
+    refreshBuildingStats();
+  };
   const addBuildings = (
     key: string,
     tile: GtadbGroundTileAddress,
     footprints: readonly GtadbBuildingFootprint[],
   ): void => {
     removeBuildings(key);
-    const sampleStep = options.radius <= 2 ? 2 : 1;
-    const sampled = footprints.filter((footprint, index) => {
-      if (index % sampleStep !== 0) return false;
+    const sampled = footprints.filter((footprint) => {
       const bounds = getGtadbFootprintWorldBounds(tile, footprint);
       if (doesGtadbFootprintOverlapArrivalCorridor(bounds)) return false;
       if (doesGtadbFootprintOverlapProtectedArrival(bounds, protectedArrival)) return false;
@@ -823,104 +661,44 @@ export function createGtadbGroundTileStream(options: {
           world.z <= bounds.maxZ + 18,
       );
     });
-    if (sampled.length === 0) return;
-    const tileCenter = getGtadbTileWorldCenter(tile);
-    const regionName = getLeonidaZoneProfile(tileCenter).name;
-    const palette = BUILDING_PALETTES[regionName] ?? BUILDING_PALETTES['Port Gellhorn']!;
-    const buildings = new THREE.InstancedMesh(buildingGeometry, buildingMaterial, sampled.length);
-    const dummy = new THREE.Object3D();
-    const tileCollisions: AxisAlignedRectangle[] = [];
-    const balconies: Array<{ x: number; y: number; z: number; width: number; depth: number }> = [];
-    const lobbies: Array<{ x: number; y: number; z: number; width: number; depth: number }> = [];
-    const rooftops: Array<{ x: number; y: number; z: number; width: number; depth: number }> = [];
-
-    sampled.forEach((footprint, index) => {
-      const bounds = getGtadbFootprintWorldBounds(tile, footprint);
-      const width = Math.max(3, (bounds.maxX - bounds.minX) * 0.88);
-      const depth = Math.max(3, (bounds.maxZ - bounds.minZ) * 0.88);
-      const height = buildingHeight(regionName, footprint, tile);
-      const x = (bounds.minX + bounds.maxX) / 2;
-      const z = (bounds.minZ + bounds.maxZ) / 2;
-      dummy.position.set(x, height / 2 + 0.03, z);
-      dummy.scale.set(width, height, depth);
-      dummy.rotation.set(0, 0, 0);
-      dummy.updateMatrix();
-      buildings.setMatrixAt(index, dummy.matrix);
-      buildings.setColorAt(
-        index,
-        new THREE.Color(
-          palette[
-            Math.floor(deterministicUnit(tile.x, tile.y, footprint.x, index) * palette.length)
-          ] ?? palette[0],
-        ),
-      );
-      getGtadbBuildingDetailLevels(height).forEach((elevation) => {
-        balconies.push({
-          x,
-          y: elevation,
-          z,
-          width: width + 0.7,
-          depth: depth + 0.7,
-        });
-      });
-      lobbies.push({ x, y: 1.35, z, width: width + 0.12, depth: depth + 0.12 });
-      rooftops.push({
+    if (!sampled.length) return;
+    const tileBounds = getGtadbTileWorldBounds(tile);
+    const specs: FabricBuilding[] = sampled.map((footprint) => {
+      const orientation = footprint.oriented;
+      const x =
+        tileBounds.minX +
+        (orientation?.centerX ?? footprint.x + footprint.width / 2) * WORLD_METRES_PER_GTADB_UNIT;
+      const z =
+        tileBounds.minZ +
+        (orientation?.centerY ?? footprint.y + footprint.height / 2) * WORLD_METRES_PER_GTADB_UNIT;
+      return {
         x,
-        y: height + 0.62,
         z,
-        width: Math.max(2.2, width * 0.62),
-        depth: Math.max(2.2, depth * 0.62),
-      });
-      tileCollisions.push({
-        minX: x - width / 2,
-        maxX: x + width / 2,
-        minZ: z - depth / 2,
-        maxZ: z + depth / 2,
-      });
+        width: Math.max(
+          3,
+          (orientation?.width ?? footprint.width) * WORLD_METRES_PER_GTADB_UNIT * 0.94,
+        ),
+        depth: Math.max(
+          3,
+          (orientation?.depth ?? footprint.height) * WORLD_METRES_PER_GTADB_UNIT * 0.94,
+        ),
+        rotation: orientation?.rotation ?? 0,
+        seed: deterministicUnit(tile.x, tile.y, footprint.x, footprint.y),
+        region: getLeonidaZoneProfile({ x, z }).name,
+      };
     });
-    buildings.instanceMatrix.needsUpdate = true;
-    if (buildings.instanceColor) buildings.instanceColor.needsUpdate = true;
-    buildings.name = `gtadb-approximate-buildings-${tile.x}-${tile.y}`;
-    buildings.castShadow = false;
-    buildings.receiveShadow = true;
-    buildings.userData.evidence = 'APPROXIMATE';
-    buildings.userData.source = 'GTADB footprints + Rockstar regional visual references';
-    root.add(buildings);
-    buildingMeshes.set(key, buildings);
-    const detailGroup = new THREE.Group();
-    detailGroup.name = `gtadb-building-details-${tile.x}-${tile.y}`;
-    const addDetailInstances = (
-      name: string,
-      placements: readonly { x: number; y: number; z: number; width: number; depth: number }[],
-      height: number,
-      material: THREE.MeshStandardMaterial,
-    ): void => {
-      if (placements.length === 0) return;
-      const instances = new THREE.InstancedMesh(
-        buildingDetailGeometry,
-        material,
-        placements.length,
-      );
-      placements.forEach((placement, index) => {
-        dummy.position.set(placement.x, placement.y, placement.z);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.set(placement.width, height, placement.depth);
-        dummy.updateMatrix();
-        instances.setMatrixAt(index, dummy.matrix);
-      });
-      instances.instanceMatrix.needsUpdate = true;
-      instances.name = name;
-      instances.receiveShadow = true;
-      detailGroup.add(instances);
-    };
-    addDetailInstances('gtadb-balcony-floor-lines', balconies, 0.16, balconyMaterial);
-    addDetailInstances('gtadb-glazed-lobbies', lobbies, 2.7, lobbyMaterial);
-    addDetailInstances('gtadb-rooftop-penthouses', rooftops, 1.24, rooftopMaterial);
-    detailGroup.userData.detailCount = balconies.length + lobbies.length + rooftops.length;
-    detailGroup.userData.evidence = 'APPROXIMATE';
-    root.add(detailGroup);
-    buildingDetailGroups.set(key, detailGroup);
-    collisionGroups.set(key, tileCollisions);
+    const fabric = fabricKit.create(
+      specs,
+      `gtadb-approximate-buildings-${tile.x}-${tile.y}`,
+      detail,
+    );
+    root.add(fabric.root);
+    buildingFabrics.set(key, fabric);
+    collisionGroups.set(
+      key,
+      sampled.map((footprint) => getGtadbFootprintWorldBounds(tile, footprint)),
+    );
+    fabric.setDetail(hasCloseDetail(tile));
     refreshBuildingStats();
   };
 
@@ -931,6 +709,8 @@ export function createGtadbGroundTileStream(options: {
       if (disposed) return;
       const center = getGtadbTileAddressFromWorld(position);
       currentCenter = center;
+      currentPosition = { ...position };
+      syncBuildingDetails();
       const nextCenterKey = tileKey(center);
       if (nextCenterKey === centerKey) return;
       centerKey = nextCenterKey;
@@ -952,7 +732,10 @@ export function createGtadbGroundTileStream(options: {
         const key = tileKey(tile);
         if (meshes.has(key)) continue;
         const texture = loader.load(getGtadbTileUrl(tile), (loadedTexture) => {
-          if (disposed || !meshes.has(key)) return;
+          if (disposed || meshes.get(key)?.userData.sourceTexture !== loadedTexture) {
+            loadedTexture.dispose();
+            return;
+          }
           try {
             const imageData = readTilePixels(loadedTexture);
             if (!imageData) return;
@@ -964,12 +747,15 @@ export function createGtadbGroundTileStream(options: {
             );
             buildingFootprints.set(key, footprints);
             addBuildings(key, tile, footprints);
-            const segments = extractGtadbRoadEdgeSegments(
-              imageData.data,
-              imageData.width,
-              imageData.height,
-              4,
-              options.radius <= 2 ? 8 : 4,
+            const segments = simplifyRoadEdges(
+              extractGtadbRoadEdgeSegments(
+                imageData.data,
+                imageData.width,
+                imageData.height,
+                4,
+                detail === 'mobile' ? 2 : 1,
+              ),
+              detail === 'mobile' ? 1.3 : 0.85,
             );
             roadSegments.set(key, segments);
             if (currentCenter) syncRoadDetails(currentCenter);
@@ -988,7 +774,9 @@ export function createGtadbGroundTileStream(options: {
         });
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.anisotropy = Math.max(1, options.anisotropy);
-        const material = new THREE.MeshBasicMaterial({
+        const material = new THREE.MeshStandardMaterial({
+          roughness: 0.96,
+          metalness: 0,
           color: 0x8e928d,
           map: texture,
           fog: true,
@@ -997,9 +785,10 @@ export function createGtadbGroundTileStream(options: {
         const centerPosition = getGtadbTileWorldCenter(tile);
         mesh.name = `gtadb-ground-tile-${tile.x}-${tile.y}`;
         mesh.position.set(centerPosition.x, 0.055, centerPosition.z);
-        mesh.receiveShadow = false;
+        mesh.receiveShadow = true;
         mesh.userData.evidence = 'APPROXIMATE';
         mesh.userData.tile = tile;
+        mesh.userData.sourceTexture = texture;
         root.add(mesh);
         meshes.set(key, mesh);
       }
@@ -1029,30 +818,15 @@ export function createGtadbGroundTileStream(options: {
       meshes.clear();
       for (const key of [...roadDetailGroups.keys()]) removeRoadDetails(key);
       roadSegments.clear();
-      for (const mesh of buildingMeshes.values()) {
-        disposeInstancedMeshBuffers(mesh);
-        mesh.removeFromParent();
-      }
-      buildingMeshes.clear();
-      for (const group of buildingDetailGroups.values()) {
-        disposeInstancedMeshBuffers(group);
-        group.removeFromParent();
-      }
-      buildingDetailGroups.clear();
+      for (const fabric of buildingFabrics.values()) fabric.dispose();
+      buildingFabrics.clear();
       buildingFootprints.clear();
       protectedArrival = null;
       disposeInstancedMeshBuffers(root);
       collisionGroups.clear();
       collisions.splice(0, collisions.length);
       geometry.dispose();
-      buildingGeometry.dispose();
-      buildingDetailGeometry.dispose();
-      buildingFacadeTexture.dispose();
-      buildingEmissiveTexture.dispose();
-      buildingMaterial.dispose();
-      balconyMaterial.dispose();
-      lobbyMaterial.dispose();
-      rooftopMaterial.dispose();
+      fabricKit.dispose();
       curbGeometry.dispose();
       lampPoleGeometry.dispose();
       lampHeadGeometry.dispose();

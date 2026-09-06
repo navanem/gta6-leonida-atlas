@@ -1,9 +1,14 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { collidesWithBuildings, type AxisAlignedRectangle, type WalkPoint } from './walk-engine';
-import { AMBROSIA_WORLD, LEONIDA_KEYS_WORLD, REGION_WORLD } from './walk-geography';
-import { createMotorcycle, createRoadVehicle, type RoadVehicleType } from './walk-vehicles';
+import { LEONIDA_KEYS_WORLD, PLACE_ENTRY_VIEWS, REGION_WORLD } from './walk-geography';
+import {
+  createMotorcycle,
+  createRoadVehicle,
+  setRoadVehicleTravelDistance,
+  type RoadVehicleType,
+} from './walk-vehicles';
+import { createPedestrianLibrary, type PedestrianActor } from './walk-pedestrians';
 
 type LifeRegion = 'vice-city' | 'ambrosia' | 'leonida-keys';
 
@@ -16,6 +21,9 @@ interface LinearMover {
   collisionRadius: number;
   region: LifeRegion;
   enabled: boolean;
+  pedestrian?: PedestrianActor;
+  travelDistance?: number;
+  route?: { origin: WalkPoint; direction: WalkPoint; coordinate: number };
 }
 
 interface BobbingObject {
@@ -26,6 +34,7 @@ interface BobbingObject {
 
 export interface WalkWorldLife {
   update: (deltaSeconds: number, elapsedSeconds: number, observer?: WalkPoint) => void;
+  dispose(): void;
 }
 
 const REGION_VISIBILITY_RADIUS = 220;
@@ -37,6 +46,14 @@ const LIFE_REGION_ANCHORS: Readonly<Record<LifeRegion, WalkPoint>> = {
 };
 
 function orientLinearMover(mover: LinearMover): void {
+  if (mover.route) {
+    const sign = Math.sign(mover.speed);
+    mover.object.rotation.y = Math.atan2(
+      -mover.route.direction.x * sign,
+      -mover.route.direction.z * sign,
+    );
+    return;
+  }
   if (mover.axis === 'z') {
     mover.object.rotation.y = mover.speed >= 0 ? Math.PI : 0;
   } else {
@@ -45,9 +62,45 @@ function orientLinearMover(mover: LinearMover): void {
 }
 
 function moverPosition(mover: LinearMover, coordinate: number): WalkPoint {
+  if (mover.route)
+    return {
+      x: mover.route.origin.x + coordinate * mover.route.direction.x,
+      z: mover.route.origin.z + coordinate * mover.route.direction.z,
+    };
   return mover.axis === 'x'
     ? { x: coordinate, z: mover.object.position.z }
     : { x: mover.object.position.x, z: coordinate };
+}
+
+function moverCoordinate(mover: LinearMover): number {
+  return mover.route?.coordinate ?? mover.object.position[mover.axis];
+}
+
+function setMoverCoordinate(mover: LinearMover, coordinate: number): void {
+  if (mover.route) mover.route.coordinate = coordinate;
+  const point = moverPosition(mover, coordinate);
+  mover.object.position.x = point.x;
+  mover.object.position.z = point.z;
+}
+
+function arrivalRoute(
+  mover: LinearMover,
+  region: 'vice-city' | 'ambrosia',
+  lane: number,
+  coordinate: number,
+): LinearMover {
+  const view = PLACE_ENTRY_VIEWS[region]!;
+  const yaw = Math.atan2(view.position.x - view.target.x, view.position.z - view.target.z);
+  mover.route = {
+    origin: {
+      x: view.position.x + Math.cos(yaw) * lane,
+      z: view.position.z - Math.sin(yaw) * lane,
+    },
+    direction: { x: Math.sin(yaw), z: Math.cos(yaw) },
+    coordinate,
+  };
+  setMoverCoordinate(mover, coordinate);
+  return mover;
 }
 
 function coordinateIsClear(
@@ -82,11 +135,11 @@ function advanceLinearMover(
   deltaSeconds: number,
   collisions: readonly AxisAlignedRectangle[],
 ): void {
-  const current = mover.object.position[mover.axis];
+  const current = moverCoordinate(mover);
   let candidate = current + mover.speed * deltaSeconds;
   if (candidate > mover.max || candidate < mover.min) {
     const wrapped = safeWrappedCoordinate(mover, collisions);
-    if (wrapped !== null) mover.object.position[mover.axis] = wrapped;
+    if (wrapped !== null) setMoverCoordinate(mover, wrapped);
     return;
   }
 
@@ -97,7 +150,7 @@ function advanceLinearMover(
   }
 
   if (coordinateIsClear(mover, candidate, collisions)) {
-    mover.object.position[mover.axis] = candidate;
+    setMoverCoordinate(mover, candidate);
   }
 }
 
@@ -105,7 +158,7 @@ function placeMoverOnClearRoute(
   mover: LinearMover,
   collisions: readonly AxisAlignedRectangle[],
 ): void {
-  const current = mover.object.position[mover.axis];
+  const current = moverCoordinate(mover);
   if (coordinateIsClear(mover, current, collisions)) return;
   const routeLength = Math.max(0, mover.max - mover.min);
   for (let offset = 0.5; offset <= routeLength; offset += 0.5) {
@@ -116,7 +169,7 @@ function placeMoverOnClearRoute(
         candidate <= mover.max &&
         coordinateIsClear(mover, candidate, collisions)
       ) {
-        mover.object.position[mover.axis] = candidate;
+        setMoverCoordinate(mover, candidate);
         return;
       }
     }
@@ -139,66 +192,6 @@ function boat(color: number): THREE.Group {
   );
   console.position.set(0, 0.85, -0.15);
   group.add(hull, console);
-  return group;
-}
-
-const pedestrianMaterial = new THREE.MeshStandardMaterial({
-  vertexColors: true,
-  roughness: 0.86,
-  metalness: 0,
-});
-
-function colouredPedestrianPart(
-  source: THREE.BufferGeometry,
-  colorHex: number,
-  position: readonly [number, number, number],
-  scale: readonly [number, number, number] = [1, 1, 1],
-): THREE.BufferGeometry {
-  const geometry = source.index ? source.toNonIndexed() : source.clone();
-  geometry.applyMatrix4(
-    new THREE.Matrix4().compose(
-      new THREE.Vector3(...position),
-      new THREE.Quaternion(),
-      new THREE.Vector3(...scale),
-    ),
-  );
-  const positions = geometry.getAttribute('position');
-  const color = new THREE.Color(colorHex);
-  const colors = new Float32Array(positions.count * 3);
-  for (let index = 0; index < positions.count; index += 1) {
-    colors[index * 3] = color.r;
-    colors[index * 3 + 1] = color.g;
-    colors[index * 3 + 2] = color.b;
-  }
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  return geometry;
-}
-
-function pedestrian(shirtColor: number): THREE.Group {
-  const parts = [
-    colouredPedestrianPart(
-      new THREE.CylinderGeometry(0.28, 0.34, 0.92, 8),
-      shirtColor,
-      [0, 1.28, 0],
-    ),
-    colouredPedestrianPart(new THREE.SphereGeometry(0.22, 8, 6), 0xa96f51, [0, 1.95, 0]),
-    ...[-0.14, 0.14].map((x) =>
-      colouredPedestrianPart(new THREE.CylinderGeometry(0.085, 0.1, 0.78, 7), 0x202934, [
-        x,
-        0.43,
-        0,
-      ]),
-    ),
-  ];
-  const merged = mergeGeometries(parts, false) ?? parts[0]!;
-  merged.computeBoundingSphere();
-  const mesh = new THREE.Mesh(merged, pedestrianMaterial);
-  mesh.name = 'pedestrian-mesh';
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  const group = new THREE.Group();
-  group.userData.renderProfile = 'single-mesh-pedestrian';
-  group.add(mesh);
   return group;
 }
 
@@ -238,17 +231,15 @@ export function createWalkWorldLife(
   collisions: readonly AxisAlignedRectangle[] = [],
 ): WalkWorldLife {
   const linearMovers: LinearMover[] = [];
+  const pedestrians = createPedestrianLibrary();
+  let disposed = false;
   const bobbing: BobbingObject[] = [];
   const palette = [0xe83e8c, 0x37b7d9, 0xf1be42, 0xdce2e5, 0x222831, 0x8b5cf6];
   const viceVehicleCount = reducedDensity ? 6 : 14;
   const viceCenter = REGION_WORLD.viceCity;
-  const catalanBoulevardX = viceCenter.x + 100;
-  const verticalRoads = [-8.6, -3.7, 3.7, 8.6].map((offset) => catalanBoulevardX + offset);
-  const horizontalRoads = [-23, -17].map((offset) => viceCenter.z + offset);
-  const viceMinX = catalanBoulevardX - 24;
-  const viceMaxX = catalanBoulevardX + 24;
-  const viceMinZ = viceCenter.z - 105;
-  const viceMaxZ = viceCenter.z + 125;
+  const lanes = [-7.5, -3.6, 3.7, 7.6];
+  const routeMin = -235;
+  const routeMax = 18;
   const vehicleTypes: RoadVehicleType[] = ['sedan', 'convertible', 'pickup', 'sedan', 'police'];
 
   for (let index = 0; index < viceVehicleCount; index += 1) {
@@ -257,50 +248,28 @@ export function createWalkWorldLife(
       vehicleTypes[index % vehicleTypes.length] ?? 'sedan',
     );
     vehicle.name = 'moving-road-vehicle';
-    if (index % 4 !== 3) {
-      const road = verticalRoads[index % verticalRoads.length] ?? viceCenter.x;
-      vehicle.position.set(
-        road + (index % 4 < 2 ? -2.4 : 2.4),
-        0.16,
-        viceMinZ + ((index * 19) % (viceMaxZ - viceMinZ)),
-      );
-      vehicle.rotation.y = Math.PI;
-      linearMovers.push({
-        object: vehicle,
-        axis: 'z',
-        min: viceMinZ,
-        max: viceMaxZ,
-        speed: 3.8 + (index % 4),
-        collisionRadius: 1.2,
-        region: 'vice-city',
-        enabled: true,
-      });
-    } else {
-      const road = horizontalRoads[index % horizontalRoads.length] ?? viceCenter.z;
-      vehicle.position.set(
-        viceMinX + ((index * 17) % (viceMaxX - viceMinX)),
-        0.16,
-        road + (index % 4 < 2 ? -2.4 : 2.4),
-      );
-      vehicle.rotation.y = -Math.PI / 2;
-      linearMovers.push({
-        object: vehicle,
-        axis: 'x',
-        min: viceMinX,
-        max: viceMaxX,
-        speed: 4.2 + (index % 3),
-        collisionRadius: 1.2,
-        region: 'vice-city',
-        enabled: true,
-      });
-    }
+    vehicle.position.y = 0.27;
+    linearMovers.push(
+      arrivalRoute(
+        {
+          object: vehicle,
+          axis: 'z',
+          min: routeMin,
+          max: routeMax,
+          speed: (3.8 + (index % 4)) * (index % 4 < 2 ? -1 : 1),
+          collisionRadius: 1.2,
+          region: 'vice-city',
+          enabled: true,
+        },
+        'vice-city',
+        lanes[index % lanes.length]!,
+        -18 - index * 13,
+      ),
+    );
     scene.add(vehicle);
   }
 
   const motorcycleCount = reducedDensity ? 4 : 8;
-  const ambrosiaRoadX = AMBROSIA_WORLD.town.x + 4;
-  const ambrosiaMinZ = AMBROSIA_WORLD.town.z - 14;
-  const ambrosiaMaxZ = AMBROSIA_WORLD.town.z + 24;
   for (let index = 0; index < motorcycleCount; index += 1) {
     const motorcycle = createMotorcycle(
       [0x8f2427, 0x16191c, 0x3f5457][index % 3] ?? 0x16191c,
@@ -308,20 +277,25 @@ export function createWalkWorldLife(
       [0x9a573b, 0xb97a59, 0x74452f, 0xc98d6c][index % 4] ?? 0x9a573b,
     );
     motorcycle.name = 'moving-ambrosia-motorcycle';
-    const lane = index % 2 === 0 ? ambrosiaRoadX - 1.45 : ambrosiaRoadX + 1.25;
-    motorcycle.position.set(lane, 0.14, ambrosiaMaxZ - 3 - (index % 4) * 1.2);
-    motorcycle.rotation.y = 0;
+    motorcycle.position.y = 0.27;
     motorcycle.scale.setScalar(0.94 + (index % 3) * 0.035);
-    linearMovers.push({
-      object: motorcycle,
-      axis: 'z',
-      min: ambrosiaMinZ,
-      max: ambrosiaMaxZ,
-      speed: -3.15 - (index % 3) * 0.12,
-      collisionRadius: 0.55,
-      region: 'ambrosia',
-      enabled: true,
-    });
+    linearMovers.push(
+      arrivalRoute(
+        {
+          object: motorcycle,
+          axis: 'z',
+          min: routeMin,
+          max: routeMax,
+          speed: 3.15 + (index % 3) * 0.12,
+          collisionRadius: 0.55,
+          region: 'ambrosia',
+          enabled: true,
+        },
+        'ambrosia',
+        index % 2 === 0 ? -1.35 : 1.35,
+        -26 - Math.floor(index / 2) * 4.5,
+      ),
+    );
     scene.add(motorcycle);
   }
 
@@ -330,43 +304,52 @@ export function createWalkWorldLife(
     const pickup = createRoadVehicle(index % 2 ? 0x33464d : 0xc7c0ad, 'pickup');
     pickup.name = 'moving-ambrosia-pickup';
     const headingSouth = index % 2 === 0;
-    pickup.position.set(
-      headingSouth ? ambrosiaRoadX - 1.7 : ambrosiaRoadX + 1.7,
-      0.16,
-      headingSouth ? ambrosiaMaxZ - 6 : ambrosiaMaxZ - 15,
+    pickup.position.y = 0.27;
+    linearMovers.push(
+      arrivalRoute(
+        {
+          object: pickup,
+          axis: 'z',
+          min: routeMin,
+          max: routeMax,
+          speed: headingSouth ? -2.45 : 2.3,
+          collisionRadius: 1.2,
+          region: 'ambrosia',
+          enabled: true,
+        },
+        'ambrosia',
+        headingSouth ? -3.6 : 3.6,
+        -52 - index * 18,
+      ),
     );
-    pickup.rotation.y = headingSouth ? 0 : Math.PI;
-    linearMovers.push({
-      object: pickup,
-      axis: 'z',
-      min: ambrosiaMinZ,
-      max: ambrosiaMaxZ,
-      speed: headingSouth ? -2.45 : 2.3,
-      collisionRadius: 1.2,
-      region: 'ambrosia',
-      enabled: true,
-    });
     scene.add(pickup);
   }
 
   const pedestrianCount = reducedDensity ? 5 : 14;
-  const viceSidewalks = [catalanBoulevardX - 18.4, catalanBoulevardX + 18.4];
   for (let index = 0; index < pedestrianCount; index += 1) {
-    const person = pedestrian(palette[(index + 2) % palette.length] ?? 0xdddddd);
+    const actor = pedestrians.create({ variant: index, pose: 'walk' });
+    const person = actor.root;
     person.name = 'moving-pedestrian';
-    const sidewalkX = viceSidewalks[index % viceSidewalks.length] ?? viceCenter.x;
-    person.position.set(sidewalkX, 0.22, viceMinZ + ((index * 13) % (viceMaxZ - viceMinZ)));
-    person.scale.setScalar(0.88 + (index % 3) * 0.06);
-    linearMovers.push({
-      object: person,
-      axis: 'z',
-      min: viceMinZ,
-      max: viceMaxZ,
-      speed: 0.72 + (index % 4) * 0.12,
-      collisionRadius: 0.36,
-      region: 'vice-city',
-      enabled: true,
-    });
+    person.position.y = 0.155;
+    linearMovers.push(
+      arrivalRoute(
+        {
+          object: person,
+          axis: 'z',
+          min: routeMin,
+          max: routeMax,
+          speed: (0.72 + (index % 4) * 0.12) * (index % 2 ? -1 : 1),
+          collisionRadius: 0.36,
+          region: 'vice-city',
+          enabled: true,
+          pedestrian: actor,
+          travelDistance: index * 0.137,
+        },
+        'vice-city',
+        index % 2 ? -13.35 : 13.35,
+        -10 - index * 14,
+      ),
+    );
     scene.add(person);
   }
 
@@ -396,7 +379,10 @@ export function createWalkWorldLife(
     scene.add(vessel);
   }
 
-  for (const mover of linearMovers) placeMoverOnClearRoute(mover, collisions);
+  for (const mover of linearMovers) {
+    orientLinearMover(mover);
+    placeMoverOnClearRoute(mover, collisions);
+  }
 
   const aircraft = helicopter();
   aircraft.name = 'moving-vice-city-helicopter';
@@ -407,6 +393,7 @@ export function createWalkWorldLife(
 
   return {
     update(deltaSeconds, elapsedSeconds, observer) {
+      if (disposed) return;
       for (const mover of linearMovers) {
         if (observer) {
           const anchor = LIFE_REGION_ANCHORS[mover.region];
@@ -414,7 +401,28 @@ export function createWalkWorldLife(
             mover.enabled &&
             Math.hypot(observer.x - anchor.x, observer.z - anchor.z) <= REGION_VISIBILITY_RADIUS;
         }
+        const before = moverCoordinate(mover);
         if (mover.enabled) advanceLinearMover(mover, deltaSeconds, collisions);
+        const displacement = Math.abs(moverCoordinate(mover) - before);
+        // Route wrapping is a teleport, not a stride or wheel revolution.
+        const travelled =
+          displacement <= Math.abs(mover.speed * deltaSeconds) + 0.001 ? displacement : 0;
+        mover.travelDistance = (mover.travelDistance ?? 0) + travelled;
+        if (mover.object.visible) {
+          if (mover.pedestrian) {
+            mover.pedestrian.update({
+              elapsedSeconds,
+              distanceMetres: mover.travelDistance,
+              speedMetresPerSecond: travelled > 0 ? Math.abs(mover.speed) : 0,
+              distanceToCamera: observer
+                ? Math.hypot(
+                    observer.x - mover.object.position.x,
+                    observer.z - mover.object.position.z,
+                  )
+                : 0,
+            });
+          } else setRoadVehicleTravelDistance(mover.object, mover.travelDistance);
+        }
       }
       for (const item of bobbing) {
         item.object.position.y = item.baseY + Math.sin(elapsedSeconds * 1.4 + item.phase) * 0.08;
@@ -433,6 +441,16 @@ export function createWalkWorldLife(
       aircraft.rotation.y = -angle + Math.PI / 2;
       const rotor = aircraft.getObjectByName('main-rotor');
       if (rotor) rotor.rotation.y += deltaSeconds * 24;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      pedestrians.dispose();
+      for (const mover of linearMovers) {
+        mover.object.traverse((object) => {
+          if (object instanceof THREE.InstancedMesh) object.dispose();
+        });
+      }
     },
   };
 }

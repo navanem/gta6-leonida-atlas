@@ -1,3 +1,4 @@
+import { installWalkWaterSurface } from './walk-water-surface';
 import * as THREE from 'three';
 
 import type { WalkRenderRegion } from './walk-region-streaming';
@@ -80,7 +81,7 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     hemisphereIntensity: 1.42,
     ambientIntensity: 0.4,
     moonOpacity: 0.05,
-    cloudOpacity: 0.14,
+    cloudOpacity: 0.64,
     fogDensity: 0.00115,
   },
   grassrivers: {
@@ -104,7 +105,7 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     hemisphereIntensity: 1.08,
     ambientIntensity: 0.34,
     moonOpacity: 0.06,
-    cloudOpacity: 0.14,
+    cloudOpacity: 0.64,
     fogDensity: 0.0019,
   },
   'port-gellhorn': {
@@ -128,7 +129,7 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     hemisphereIntensity: 0.38,
     ambientIntensity: 0.16,
     moonOpacity: 0.82,
-    cloudOpacity: 0.11,
+    cloudOpacity: 0.32,
     fogDensity: 0.00245,
   },
   ambrosia: {
@@ -152,7 +153,7 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     hemisphereIntensity: 0.94,
     ambientIntensity: 0.3,
     moonOpacity: 0.08,
-    cloudOpacity: 0.13,
+    cloudOpacity: 0.58,
     fogDensity: 0.00155,
   },
   'mount-kalaga': {
@@ -176,7 +177,7 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     hemisphereIntensity: 1.12,
     ambientIntensity: 0.31,
     moonOpacity: 0.05,
-    cloudOpacity: 0.14,
+    cloudOpacity: 0.64,
     fogDensity: 0.00135,
   },
   'vice-city': {
@@ -197,10 +198,10 @@ export const WALK_ATMOSPHERE_REGION_PRESETS: Readonly<
     sunElevation: 29,
     sunIntensity: 4.1,
     fillIntensity: 0.3,
-    hemisphereIntensity: 0.78,
-    ambientIntensity: 0.2,
+    hemisphereIntensity: 1.24,
+    ambientIntensity: 0.27,
     moonOpacity: 0.04,
-    cloudOpacity: 0.13,
+    cloudOpacity: 0.58,
     fogDensity: 0.00128,
   },
 };
@@ -277,6 +278,7 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 
     float dither = (hash12(gl_FragCoord.xy + uTime * 0.01) - 0.5) / 255.0;
     gl_FragColor = vec4(skyColor + dither, 1.0);
+    #include <colorspace_fragment>
   }
 `;
 
@@ -362,34 +364,51 @@ function createDiscTexture(
 }
 
 function createCloudTexture(): THREE.DataTexture {
-  const width = 192;
-  const height = 96;
+  const width = 256;
+  const height = 128;
   const pixels = new Uint8Array(width * height * 4);
+  // Overlapping soft volumes form a broad base with irregular cumulus tops.
+  // DataTexture v=0 is the bottom: the upper/left lobes catch more daylight.
   const lobes = [
-    [0.19, 0.56, 0.19, 0.25],
-    [0.34, 0.42, 0.22, 0.3],
-    [0.5, 0.5, 0.29, 0.34],
-    [0.67, 0.43, 0.22, 0.3],
-    [0.82, 0.58, 0.18, 0.23],
+    [0.18, 0.4, 0.17, 0.23],
+    [0.33, 0.53, 0.19, 0.29],
+    [0.49, 0.59, 0.21, 0.34],
+    [0.66, 0.52, 0.19, 0.28],
+    [0.81, 0.4, 0.18, 0.22],
+    [0.48, 0.35, 0.34, 0.17],
   ] as const;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const u = x / (width - 1);
       const v = y / (height - 1);
       let density = 0;
+      let illumination = 0;
       for (const [centerX, centerY, radiusX, radiusY] of lobes) {
         const deltaX = (u - centerX) / radiusX;
         const deltaY = (v - centerY) / radiusY;
-        density += Math.exp(-(deltaX * deltaX + deltaY * deltaY) * 2.25);
+        const radiusSquared = deltaX * deltaX + deltaY * deltaY;
+        const influence = Math.exp(-radiusSquared * 2.4);
+        const normalZ = Math.sqrt(Math.max(0, 1 - radiusSquared));
+        const lobeLight = THREE.MathUtils.clamp(
+          0.81 + normalZ * 0.15 + deltaY * 0.12 - deltaX * 0.05,
+          0.8,
+          1,
+        );
+        density += influence;
+        illumination += influence * lobeLight;
       }
       const edgeFade = Math.sin(Math.PI * u) * Math.sin(Math.PI * v);
-      const wisps = 0.91 + 0.09 * Math.sin(u * 31 + Math.sin(v * 17) * 2.2);
-      const alpha = THREE.MathUtils.clamp((density - 0.18) * 1.16, 0, 1) * edgeFade * wisps;
+      const wisps =
+        0.96 +
+        0.025 * Math.sin(u * 47 + Math.sin(v * 29) * 1.7) +
+        0.015 * Math.sin(u * 83 - v * 61);
+      const alpha = THREE.MathUtils.smoothstep(density, 0.15, 1.18) * edgeFade * wisps;
+      const shade = density > 0 ? illumination / density : 1;
       const offset = (y * width + x) * 4;
-      const lowerWarmth = THREE.MathUtils.smoothstep(v, 0.34, 0.78);
-      pixels[offset] = Math.round(255 - lowerWarmth * 7);
-      pixels[offset + 1] = Math.round(255 - lowerWarmth * 5);
-      pixels[offset + 2] = 255;
+      // Bright RGB even in transparent texels prevents dark filtered borders.
+      pixels[offset] = alpha > 0.001 ? Math.round(255 * shade) : 255;
+      pixels[offset + 1] = alpha > 0.001 ? Math.round(255 * Math.min(1, shade + 0.012)) : 255;
+      pixels[offset + 2] = alpha > 0.001 ? Math.round(255 * Math.min(1, shade + 0.028)) : 255;
       pixels[offset + 3] = Math.round(alpha * 255);
     }
   }
@@ -411,14 +430,16 @@ function createClouds(
     color: 0xffffff,
     map: createCloudTexture(),
     transparent: true,
-    opacity: reducedQuality ? 0.1 : 0.13,
-    alphaTest: 0.02,
+    opacity: reducedQuality ? 0.52 : 0.62,
+    alphaTest: 0.006,
     depthWrite: false,
-    vertexColors: true,
+    // instanceColor works independently; PlaneGeometry has no vertex color attribute.
+    vertexColors: false,
     fog: false,
     side: THREE.DoubleSide,
     toneMapped: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
+    forceSinglePass: true,
   });
   const clouds = new THREE.InstancedMesh(geometry, material, cloudCount);
   const dummy = new THREE.Object3D();
@@ -501,6 +522,7 @@ function createAerosols(
 export function createWalkWaterAnimator(
   material: THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial,
 ): WalkWaterAnimator {
+  const surface = installWalkWaterSurface(material);
   const baseColor = material.color.clone();
   const baseEmissive = material.emissive.clone();
   const baseRoughness = material.roughness;
@@ -511,6 +533,7 @@ export function createWalkWaterAnimator(
 
   return {
     update(elapsedSeconds: number): void {
+      surface.update(elapsedSeconds);
       const slowWave = Math.sin(elapsedSeconds * 0.43);
       const crossWave = Math.sin(elapsedSeconds * 0.71 + 1.6);
       const shimmer = slowWave * 0.5 + crossWave * 0.5;
@@ -530,6 +553,7 @@ export function createWalkWaterAnimator(
       }
     },
     dispose(): void {
+      surface.dispose();
       material.color.copy(baseColor);
       material.emissive.copy(baseEmissive);
       material.roughness = baseRoughness;

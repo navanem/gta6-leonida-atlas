@@ -1,0 +1,112 @@
+.regional-research {
+  margin-block: 22px;
+  padding-block: 18px;
+  border-block: 1px solid #62808b55;
+  min-width: 0;
+}
+.regional-research h3 {
+  margin: 0 0 8px;
+  font-size: 19px;
+}
+.regional-research .regional-research-intro {
+  margin: 0 0 8px;
+  line-height: 1.65;
+}
+.regional-research-reviewed {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #b5c8cd;
+}
+.regional-research-group {
+  border-bottom: 1px solid #62808b44;
+  padding-block: 7px;
+}
+.regional-research-group summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 11px 3px;
+  font-weight: 650;
+}
+.regional-research-group summary span {
+  display: block;
+  padding-left: 18px;
+  margin-top: 3px;
+  color: #b5c8cd;
+  font-size: 11px;
+  font-weight: 400;
+}
+.regional-research-group summary:focus-visible,
+.regional-research a:focus-visible {
+  outline: 3px solid #e8c06b;
+  outline-offset: 3px;
+}
+.regional-research .regional-research-overview {
+  margin: 4px 0 16px;
+}
+.regional-discoveries {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 20px;
+}
+.regional-discoveries h4 {
+  margin: 0 0 5px;
+  font-size: 14px;
+}
+.regional-research .regional-discoveries p {
+  margin: 0 0 9px;
+  line-height: 1.65;
+  font-size: 13px;
+}
+.regional-discovery-sources {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+.regional-discovery-sources li {
+  display: grid;
+  gap: 2px;
+}
+.regional-discovery-sources span {
+  color: #b5c8cd;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.regional-research a {
+  color: #79dbd0;
+  overflow-wrap: anywhere;
+  text-underline-offset: 3px;
+}
+.regional-discovery-sources a {
+  font-size: 12px;
+}
+.regional-research .regional-research-placement {
+  margin: 18px 0 10px;
+  color: #b5c8cd;
+  font-size: 11px;
+  line-height: 1.65;
+}
+.regional-research-travel {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding-block: 8px;
+  font-size: 13px;
+}
+.regional-research-group > button {
+  margin-bottom: 9px;
+}
+.regional-research-videos {
+  margin-top: 22px;
+}
+.regional-research-videos h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.regional-research .regional-research-videos p {
+  font-size: 12px;
+}

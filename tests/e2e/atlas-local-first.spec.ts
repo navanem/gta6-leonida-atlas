@@ -542,6 +542,39 @@ test('3D explorer spawns at the selected Ambrosia position instead of Vice City'
   expect(Math.hypot(spawn.x - spawn.destination.x, spawn.z - spawn.destination.z)).toBeLessThan(75);
   expect(Math.hypot(spawn.x + 849.814, spawn.z - 651.22)).toBeGreaterThan(1000);
   await expect(page.locator('[data-atlas-arrival-notice]')).toContainText('Ambrosia');
+
+  // Native toolbar activation must work while walking shortcuts are active.
+  await page.getByRole('button', { name: 'Evidence', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  const evidence = page.getByRole('dialog', { name: 'What is known', exact: true });
+  await expect(evidence).toBeVisible();
+  await expect(evidence.locator('[data-research-discovery]')).toHaveCount(15);
+  const keysResearch = evidence.locator('details').filter({
+    has: page.locator('summary').filter({ hasText: 'Leonida Keys' }),
+  });
+  await keysResearch.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(keysResearch).toHaveAttribute('open', '');
+  await expect(
+    keysResearch.getByRole('link', { name: 'Rockstar — Leonida Keys 06', exact: true }),
+  ).toHaveAttribute(
+    'href',
+    'https://www.rockstargames.com/VI/_next/static/media/Leonida_Keys_06.0eapr3hbeyewx.jpg',
+  );
+  await keysResearch
+    .getByRole('button', { name: 'Explore the region: Leonida Keys', exact: true })
+    .focus();
+  await page.keyboard.press('Enter');
+  await expect(evidence).not.toBeVisible();
+  await expect(world.locator('[data-walk-zone]')).toHaveText('Leonida Keys');
+  // This is the existing approximate regional arrival, not a new research pin.
+  const researchArrival = await world.evaluate((element) => ({
+    x: Number((element as HTMLElement).dataset.playerX),
+    z: Number((element as HTMLElement).dataset.playerZ),
+  }));
+  expect(Math.hypot(researchArrival.x + 9830.96197, researchArrival.z - 6677.24481))
+    .toBeLessThan(75);
+
   await page.getByRole('button', { name: 'Back to atlas', exact: true }).click();
   await selectRegion(page, 'Leonida Keys');
   await page.getByRole('button', { name: '3D explorer', exact: true }).click();

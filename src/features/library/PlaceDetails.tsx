@@ -10,6 +10,8 @@ import {
   useUserStore,
 } from '../../stores/atlas';
 import { finishNoteSave, reconcileNoteDraft, type NoteDraft } from './note-draft';
+import { getResearchForPlace } from '../street-leonida/leonida-research';
+import RegionalResearch from './RegionalResearch';
 
 export default function PlaceDetails({ place }: { place: Place }) {
   const favorite = useUserStore((s) => s.favorites.some((f) => f.placeId === place.id));
@@ -34,6 +36,7 @@ export default function PlaceDetails({ place }: { place: Place }) {
   }, [savedNote, savedRevision]);
   const [copied, setCopied] = useState(false);
   const isPersonal = place.evidence === 'personal';
+  const research = getResearchForPlace(place);
   async function saveNote() {
     if (saving.current || !draft.dirty || draft.conflict) return;
     saving.current = true;
@@ -140,6 +143,7 @@ export default function PlaceDetails({ place }: { place: Place }) {
             <ExternalLink size={13} />
           </a>
         )}
+        {research && <RegionalResearch region={research.region.slug} />}
         <section className="detail-section">
           <label htmlFor="place-note">Notes</label>
           <textarea

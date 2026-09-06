@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { gtadbToWorld } from '../../src/features/street-leonida/leonida-coordinates';
 import {
   createGtadbGroundTileStream,
+  getGtadbFootprintWorldBounds,
   getGtadbTileWorldCenter,
   listGtadbGroundTiles,
 } from '../../src/features/street-leonida/walk-cartography';
@@ -80,7 +81,10 @@ describe('Street Leonida human and world scale', () => {
       });
       const stream = createGtadbGroundTileStream({ radius, anisotropy: 1, detail });
       const center = getGtadbTileWorldCenter({ z: 5, x: 10, y: 30 });
-      const farPosition = { x: center.x + 256 - distance - 1, z: center.z };
+      const footprint = getGtadbFootprintWorldBounds(
+        { z: 5, x: 11, y: 30 }, { x: 120, y: 120, width: 8, height: 8 },
+      );
+      const farPosition = { x: footprint.minX - distance - 1, z: center.z };
       stream.sync(farPosition);
       loads.forEach((complete) => complete());
       const building = stream.root.getObjectByName('gtadb-approximate-buildings-11-30')!;
@@ -113,7 +117,8 @@ describe('Street Leonida human and world scale', () => {
     expect(WALK_WORLD_RENDER_CONFIG.environmentIntensity).toBeCloseTo(0.75, 5);
     expect(WALK_WORLD_RENDER_CONFIG.toneMappingExposure).toBeCloseTo(0.94, 5);
     expect(WALK_WORLD_RENDER_CONFIG.shadowFilter).toBe('pcf');
-    expect(WALK_WORLD_RENDER_CONFIG.shadowMapSize).toBe(1024);
+    expect(WALK_WORLD_RENDER_CONFIG.shadowMapSize).toBeLessThanOrEqual(2048);
+    expect(WALK_WORLD_RENDER_CONFIG.shadowDistanceMetres / WALK_WORLD_RENDER_CONFIG.shadowMapSize).toBeLessThanOrEqual(0.1);
     expect(WALK_WORLD_RENDER_CONFIG.shadowDistanceMetres).toBeLessThanOrEqual(320);
   });
 

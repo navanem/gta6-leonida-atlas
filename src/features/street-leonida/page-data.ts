@@ -2,6 +2,7 @@ import { GTADB_LICENSE_URL, GTADB_PREFERRED_SOURCE, GTADB_REVISION } from './gta
 import { worldToGtadb } from './leonida-coordinates';
 import { OFFICIAL_SOURCE_URLS } from './leonida-evidence';
 import { PLACE_ENTRY_VIEWS } from './walk-geography';
+import { RESEARCH_REGIONS, RESEARCH_REVIEWED_AT } from './leonida-research';
 import type {
   PublicStreetList,
   PublicStreetMedia,
@@ -46,7 +47,7 @@ const rockstarSource = (url: string): PublicStreetSource => ({
   publisher: 'Rockstar Games',
   url,
   publishedAt: null,
-  retrievedAt: '2026-09-05',
+  retrievedAt: RESEARCH_REVIEWED_AT,
 });
 
 const localMedia: PublicStreetMedia = {
@@ -141,7 +142,7 @@ const localPlaces: readonly PublicStreetPlace[] = localRegions.map((region) => (
   slug: region.slug,
   aliases: [],
   category: region.category,
-  description: region.description,
+  description: `${RESEARCH_REGIONS.find((research) => research.slug === region.slug)!.summary} Atlas placement and reconstructed geometry remain approximate.`,
   region: { name: region.name, slug: region.slug },
   relatedLocationSlug: null,
   position: localPosition(region.slug),

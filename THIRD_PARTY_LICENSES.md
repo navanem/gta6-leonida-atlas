@@ -33,3 +33,14 @@ Rockstar media is used only as cited visual/reference evidence and outbound sour
 
 GTA6 Leonida Atlas is an independent fan/community project and is not affiliated with, endorsed by or sponsored by Rockstar Games or Take-Two Interactive.
 
+## Photographic surface maps — v0.8.0
+
+The following Poly Haven assets are licensed under **CC0-1.0** ([asset license](https://polyhaven.com/license)). Clean Asphalt uses its documented 2.1 m physical coverage in the road shader. Their 1K diffuse, OpenGL normal and roughness maps are served locally as WebP. The diffuse/roughness maps use quality 88; normals use lossless encoding. No cropping or resampling was applied.
+
+- [Clean Asphalt](https://polyhaven.com/a/clean_asphalt)
+- [Concrete Wall 007](https://polyhaven.com/a/concrete_wall_007)
+- [Rock Boulder Dry](https://polyhaven.com/a/rock_boulder_dry)
+- [Wood Planks Grey](https://polyhaven.com/a/wood_planks_grey)
+- [Sandy Gravel 02](https://polyhaven.com/a/sandy_gravel_02)
+
+Acquired on 6 September 2026 through the public asset API. Exact download URLs, source and converted SHA-256 checksums, dimensions and byte sizes are recorded in `public/assets/street-leonida/surfaces/manifest.json`. These generic surface materials are original Poly Haven assets, not textures extracted from GTA.

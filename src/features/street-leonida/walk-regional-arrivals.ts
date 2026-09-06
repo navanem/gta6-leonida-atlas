@@ -5,6 +5,9 @@ import { createPedestrianLibrary } from './walk-pedestrians';
 import { installWalkWaterSurface } from './walk-water-surface';
 import { createCanyonRelief } from './walk-canyon-relief';
 import { addArrivalArchitecture } from './walk-arrival-architecture';
+import { applyArrivalPhotographicSurfaces } from './walk-arrival-surfaces';
+import { addRegionalScenery } from './walk-regional-scenery';
+import { createFacadeShellKit, type FacadeShellSpec } from './walk-facade-shell';
 
 import { gtadbToWorld } from './leonida-coordinates';
 import { REVIEWED_GTADB_ANCHORS, type ReviewedGtadbAnchorId } from './leonida-evidence';
@@ -20,6 +23,7 @@ import {
 } from './walk-vehicles';
 
 type DetailedArrivalRegion = WalkRenderRegion;
+const facadeCleanup = new WeakMap<THREE.Group, () => void>();
 type Vec3 = readonly [number, number, number];
 
 interface Transform {
@@ -685,9 +689,7 @@ function addCommonRoad(
   const material =
     region === 'port-gellhorn'
       ? materials.wornAsphalt
-      : region === 'vice-city'
-        ? materials.asphalt.clone()
-        : materials.asphalt;
+      : materials.asphalt;
   if (region === 'vice-city') {
     // Keep the broad boulevard charcoal under the desktop IBL path. Reflections
     // belong to the small wet accent meshes, not to the whole carriageway.
@@ -1084,249 +1086,70 @@ function addViceCityArrival(
     { x: -23, z: 13, width: 16, depth: 26, height: 16, color: 0xe5d9c5 },
     { x: 24, z: 15, width: 17, depth: 28, height: 23, color: 0xc7d8d4 },
   ];
-  const layeredBuildingMasses: Transform[] = buildings.map((building) => ({
+  // Solid cores are inset from all four facades. Window openings remain true
+  // recesses instead of being hidden behind another full-front rectangle.
+  const cores: Transform[] = buildings.map((building) => ({
     position: [building.x, building.height / 2 + 0.28, building.z],
-    scale: [building.width, building.height, building.depth],
+    scale: [building.width - 1.2, building.height, building.depth - 1.2],
     color: building.color,
   }));
-  layeredBuildingMasses.push(
-    ...buildings.map((building) => ({
-      position: [
-        building.x + (building.x < 0 ? -2.2 : 2.2),
-        building.height * 0.34,
-        building.z + building.depth * 0.16,
-      ] as Vec3,
-      scale: [building.width * 0.76, building.height * 0.64, building.depth * 0.72] as Vec3,
-      color: 0xcac5b5,
-    })),
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.cream,
-    layeredBuildingMasses,
-    'vice-city-arrival-art-deco-facades',
-  );
-
-  const windows: Transform[] = [];
-  const balconyBands: Transform[] = [];
-  const coralTrim: Transform[] = [];
-  const aquaTrim: Transform[] = [];
-  const storefronts: Transform[] = [];
-  const awnings: Transform[] = [];
-  const rooftops: Transform[] = [];
-  const roundedCorners: Transform[] = [];
-  const facadeSurfacePanels: Transform[] = [];
-  const endcapWindows: Transform[] = [];
-  const verticalFins: Transform[] = [];
-  const balconyRails: Transform[] = [];
-  const entryCanopies: Transform[] = [];
-  const parapetCrowns: Transform[] = [];
-  buildings.forEach((building, buildingIndex) => {
-    const facesRoadFromLeft = building.x < 0;
-    const facadeX =
-      building.x + (facesRoadFromLeft ? building.width / 2 + 0.075 : -building.width / 2 - 0.075);
-    const floors = Math.max(3, Math.floor((building.height - 3.6) / (coarsePointer ? 4.8 : 3.45)));
-    const bayCount = coarsePointer ? 3 : Math.max(4, Math.floor(building.depth / 4.6));
-    facadeSurfacePanels.push({
-      position: [facadeX + (facesRoadFromLeft ? 0.11 : -0.11), building.height * 0.52, building.z],
-      scale: [building.depth * 0.94, building.height * 0.9, 1],
-      rotation: [0, facesRoadFromLeft ? Math.PI / 2 : -Math.PI / 2, 0],
-    });
-    for (let floor = 0; floor < floors; floor += 1) {
-      const y = 4.2 + floor * (coarsePointer ? 4.35 : 3.35);
-      for (let bay = 0; bay < bayCount; bay += 1) {
-        const z =
-          building.z -
-          building.depth * 0.38 +
-          (bay * building.depth * 0.76) / Math.max(1, bayCount - 1);
-        windows.push({
-          position: [facadeX, y, z],
-          scale: [
-            0.15,
-            coarsePointer ? 1.25 : 1.42,
-            Math.min(1.7, building.depth / (bayCount + 1)),
-          ],
-          color: (buildingIndex + floor + bay) % 9 === 0 ? 0xffd4a5 : 0xb6d5d8,
-        });
-      }
-      if (floor > 0 && (floor + buildingIndex) % 2 === 0) {
-        const balconyBand: Transform = {
-          position: [facadeX + (facesRoadFromLeft ? 0.48 : -0.48), y - 1.4, building.z],
-          scale: [0.86, 0.18, building.depth * 0.86],
-        };
-        balconyBands.push(balconyBand);
-        balconyRails.push({
-          position: [
-            balconyBand.position[0] + (facesRoadFromLeft ? 0.38 : -0.38),
-            balconyBand.position[1] + 0.52,
-            building.z,
-          ],
-          scale: [0.12, 0.82, building.depth * 0.81],
-        });
-      }
-      const trim: Transform = {
-        position: [facadeX + (facesRoadFromLeft ? 0.22 : -0.22), y + 1.62, building.z],
-        scale: [0.34, 0.22, building.depth * 0.92],
-      };
-      if ((buildingIndex + floor) % 2 === 0) coralTrim.push(trim);
-      else aquaTrim.push(trim);
-
-      const endcapBayCount = coarsePointer ? 2 : Math.max(3, Math.floor(building.width / 3.8));
-      for (let bay = 0; bay < endcapBayCount; bay += 1) {
-        endcapWindows.push({
-          position: [
-            building.x -
-              building.width * 0.34 +
-              (bay * building.width * 0.68) / Math.max(1, endcapBayCount - 1),
-            y,
-            building.z + building.depth / 2 + 0.075,
-          ],
-          scale: [Math.min(1.8, building.width / (endcapBayCount + 1)), 1.38, 0.15],
-          color: (buildingIndex * 3 + floor + bay) % 8 === 0 ? 0xffd2a2 : 0xb4d6da,
-        });
-      }
-    }
-    storefronts.push({
-      position: [facadeX, 1.85, building.z],
-      scale: [0.19, 2.75, building.depth * 0.72],
-    });
-    awnings.push({
-      position: [facadeX + (facesRoadFromLeft ? 0.95 : -0.95), 3.25, building.z],
-      scale: [1.7, 0.18, building.depth * 0.64],
-      color: buildingIndex % 2 === 0 ? 0xf065a9 : 0x50c9cc,
-    });
-    rooftops.push({
-      position: [building.x, building.height + 1.05, building.z],
-      scale: [building.width * 0.52, 2.1, building.depth * 0.46],
-    });
-    parapetCrowns.push({
-      position: [building.x, building.height + 0.22, building.z],
-      scale: [building.width * 1.025, 0.44, building.depth * 1.025],
-      color: buildingIndex % 2 === 0 ? 0xe4d9c6 : 0xb9ceca,
-    });
-    entryCanopies.push({
-      position: [
-        facadeX + (facesRoadFromLeft ? 1.35 : -1.35),
-        3.6,
-        building.z + building.depth * 0.27,
-      ],
-      scale: [2.5, 0.2, Math.min(5.8, building.depth * 0.3)],
-      color: buildingIndex % 2 === 0 ? 0x7fa9a6 : 0xb8867f,
-    });
-    const finCount = coarsePointer ? 2 : 4;
-    for (let fin = 0; fin < finCount; fin += 1) {
-      verticalFins.push({
-        position: [
-          facadeX + (facesRoadFromLeft ? 0.48 : -0.48),
-          building.height * 0.54,
-          building.z - building.depth * 0.36 + (fin * building.depth * 0.72) / (finCount - 1),
-        ],
-        scale: [0.5, building.height * 0.8, 0.22],
-        color: (buildingIndex + fin) % 2 === 0 ? 0xb7837a : 0x769d9a,
+  addInstances(feature, geometry.box, materials.cream, cores, 'vice-city-arrival-art-deco-facades');
+  const shellKit = createFacadeShellKit({ resourceOwnership: 'region' });
+  const shells: FacadeShellSpec[] = [];
+  const crowns: Transform[] = [];
+  const equipment: Transform[] = [];
+  buildings.forEach((building, index) => {
+    const floors = Math.max(3, Math.round(building.height / 3.3));
+    for (const side of [-1, 1]) {
+      shells.push({
+        position: [building.x + (side * building.width) / 2, 0.28, building.z],
+        rotationY: (side * Math.PI) / 2,
+        width: building.depth,
+        height: building.height,
+        floors,
+        bayWidth: 3.1 + (index % 3) * 0.45,
+        seed: index / 10,
+        style: index % 3 ? 'coastal' : 'urban',
+        color: building.color,
+        storefront: side === (building.x < 0 ? 1 : -1),
+        balconies: index % 3 !== 1,
+      });
+      shells.push({
+        position: [building.x, 0.28, building.z + (side * building.depth) / 2],
+        rotationY: side > 0 ? 0 : Math.PI,
+        width: building.width,
+        height: building.height,
+        floors,
+        bayWidth: 3.7,
+        seed: index / 10 + 0.2,
+        style: 'coastal',
+        color: building.color,
+        balconies: index % 2 === 0,
       });
     }
-    if (!coarsePointer && buildingIndex % 3 === 1) {
-      const cornerX = facadeX + (facesRoadFromLeft ? 0.32 : -0.32);
-      for (const edge of [-1, 1]) {
-        roundedCorners.push({
-          position: [cornerX, building.height / 2, building.z + edge * building.depth * 0.38],
-          scale: [0.72, building.height * 0.94, 0.72],
-        });
-      }
-    }
+    crowns.push({
+      position: [building.x, building.height + 0.38, building.z],
+      scale: [building.width + 0.25, 0.3, building.depth + 0.25],
+      color: 0xded8c7,
+    });
+    equipment.push({
+      position: [building.x, building.height + 0.95, building.z - 2],
+      scale: [2.5, 1.3, 3.8],
+      color: 0x7e8580,
+    });
   });
-  const facadeSurfaceMaterial = materials.cream.clone();
-  facadeSurfaceMaterial.name = 'street-leonida/vice-city/subtle-stucco';
-  facadeSurfaceMaterial.color.setHex(0xd7cdbd);
-  facadeSurfaceMaterial.roughness = 0.88;
-  facadeSurfaceMaterial.metalness = 0;
-  facadeSurfaceMaterial.polygonOffset = true;
-  facadeSurfaceMaterial.polygonOffsetFactor = -1;
-  addInstances(
-    feature,
-    geometry.plane,
-    facadeSurfaceMaterial,
-    facadeSurfacePanels,
-    'vice-city-arrival-facade-surface-panels',
-    false,
-  );
-  addInstances(feature, geometry.box, materials.glass, windows, 'vice-city-arrival-window-rhythm');
-  addInstances(
-    feature,
-    geometry.box,
-    materials.glass,
-    endcapWindows,
-    'vice-city-arrival-endcap-window-rhythm',
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.paleConcrete,
-    balconyBands,
-    'vice-city-arrival-balcony-bands',
-  );
+  const facades = shellKit.create(shells, 'vice-city-arrival-facade-shells');
+  facades.setDetail(!coarsePointer);
+  feature.add(facades.root);
+  facadeCleanup.set(feature, () => shellKit.dispose());
+  addInstances(feature, geometry.box, materials.cream, crowns, 'vice-city-arrival-parapet-crowns');
   addInstances(
     feature,
     geometry.box,
     materials.steel,
-    balconyRails,
-    'vice-city-arrival-balcony-rails',
-  );
-  addInstances(feature, geometry.box, materials.coral, coralTrim, 'vice-city-arrival-coral-trim');
-  addInstances(feature, geometry.box, materials.aqua, aquaTrim, 'vice-city-arrival-aqua-trim');
-  addInstances(
-    feature,
-    geometry.box,
-    materials.glass,
-    storefronts,
-    'vice-city-arrival-ground-floor-glazing',
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.coral,
-    awnings,
-    'vice-city-arrival-storefront-awnings',
-    false,
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.dark,
-    rooftops,
+    equipment,
     'vice-city-arrival-rooftop-volumes',
   );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.cream,
-    parapetCrowns,
-    'vice-city-arrival-parapet-crowns',
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.aqua,
-    entryCanopies,
-    'vice-city-arrival-entry-canopies',
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.coral,
-    verticalFins,
-    'vice-city-arrival-vertical-fins',
-  );
-  if (roundedCorners.length > 0) {
-    addInstances(
-      feature,
-      geometry.cylinder,
-      materials.cream,
-      roundedCorners,
-      'vice-city-arrival-rounded-corners',
-    );
-  }
 
   const signage = new THREE.Group();
   signage.name = 'vice-city-arrival-secondary-signage';
@@ -1416,7 +1239,7 @@ function addViceCityArrival(
   const traffic = createRoadVehicleBatch(
     carSpecs.map((car) => ({
       color: car.color,
-      position: [car.x, 0.16, car.z],
+      position: [car.x, 0.27, car.z],
       rotationY: car.yaw,
     })),
     'sedan',
@@ -2002,8 +1825,8 @@ function addKeysArrival(
   marinaFleet.name = 'keys-marina-fleet';
   feature.add(marinaFleet);
   [
-    [26, -37, 0.16, true],
-    [34, -52, -0.08, false],
+    [45, -74, 0.16, true],
+    [48, -97, -0.08, false],
     [25, -69, 0.1, true],
     [39, -83, -0.18, false],
     [29, -103, 0.05, true],
@@ -2407,7 +2230,7 @@ function addGrassriversArrival(
   feature.add(dockFleet);
   [
     [-20, -31, 0.22, false],
-    [-34, -48, -0.14, true],
+    [-49, -79, -0.14, true],
     [19, -94, 0.08, false],
     [49, -91, -0.2, true],
     [-22, -137, 0.14, false],
@@ -3808,6 +3631,7 @@ export function addRegionalArrivalForeground(
   if (!view) return null;
   const geometry = createGeometry(coarsePointer);
   const materials = createMaterials(renderer);
+  const photographedSurfaces = applyArrivalPhotographicSurfaces(materials, coarsePointer);
   const feature = new THREE.Group() as RegionalArrivalGroup;
   feature.name = REGIONAL_ARRIVAL_FEATURE_IDS[region];
   feature.position.set(view.position.x, 0, view.position.z);
@@ -3860,6 +3684,26 @@ export function addRegionalArrivalForeground(
                   coarsePointer,
                   renderer,
                 );
+  const scenery = addRegionalScenery(feature, region, coarsePointer, localCollisions, {
+    plaster: materials.cream,
+    concrete: materials.concrete,
+    wood: materials.timber,
+    metal: materials.steel,
+    glass: materials.glass,
+    ground: region === 'grassrivers' ? materials.marsh : materials.sand,
+    accent: materials.aqua,
+    canvas: materials.coral,
+  });
+  for (const c of scenery.collisions)
+    addCollision(
+      collisions,
+      view.position,
+      feature.rotation.y,
+      (c.minX + c.maxX) / 2,
+      (c.minZ + c.maxZ) / 2,
+      c.maxX - c.minX,
+      c.maxZ - c.minZ,
+    );
   const architecture = addArrivalArchitecture(feature, region, coarsePointer);
   for (const c of architecture.collisions) {
     addCollision(
@@ -3872,7 +3716,9 @@ export function addRegionalArrivalForeground(
       c.maxZ - c.minZ,
     );
   }
-  if (region === 'mount-kalaga') feature.add(createCanyonRelief(coarsePointer));
+  if (region === 'mount-kalaga') {
+    feature.add(createCanyonRelief(coarsePointer, photographedSurfaces.applyRock, scenery.parcels));
+  }
   if (region === 'port-gellhorn') {
     for (let i = 0; i < (coarsePointer ? 2 : 4); i++) {
       const light = new THREE.PointLight(0xffbd7b, 170, 38, 2);
@@ -3910,14 +3756,29 @@ export function addRegionalArrivalForeground(
     feature.add(actor.root);
     return actor;
   });
+  // Generic palms stay on land; the authored marina water is in this same local frame.
+  let palmWaterBounds: THREE.Box3 | undefined;
+  if (region === 'leonida-keys' && activeWater) {
+    activeWater.geometry.computeBoundingBox();
+    activeWater.updateMatrix();
+    palmWaterBounds = activeWater.geometry.boundingBox!.clone().applyMatrix4(activeWater.matrix);
+  }
+  // Canyon relief already places pines on its own elevated surface. A second
+  // flat-ground planting would leave trunks buried in the rock slopes.
+  const plantingCount = region === 'mount-kalaga' ? 0 : coarsePointer ? 20 : 42;
   // Anonymous vegetation describes regional character, not an exact mapped landmark.
-  const planting = Array.from({ length: coarsePointer ? 20 : 42 }, (_, i) => {
+  const planting = Array.from({ length: plantingCount }, (_, i) => {
     const angle = i * 2.39996;
     const radius = 35 + ((i * 31) % 85);
     return [Math.cos(angle) * radius, 20 + Math.sin(angle) * radius, 7 + (i % 6)] as const;
   }).filter(
     ([x, z]) =>
       Math.abs(x) > roadWidth / 2 + 6 &&
+      !(palmWaterBounds && x >= palmWaterBounds.min.x && x <= palmWaterBounds.max.x &&
+        z >= palmWaterBounds.min.z && z <= palmWaterBounds.max.z) &&
+      !scenery.collisions.some(
+        (c) => x > c.minX - 4 && x < c.maxX + 4 && z > c.minZ - 4 && z < c.maxZ + 4,
+      ) &&
       !localCollisions.some(
         (c) => Math.abs(x - c.x) < c.width / 2 + 5 && Math.abs(z - c.z) < c.depth / 2 + 5,
       ),
@@ -3939,8 +3800,11 @@ export function addRegionalArrivalForeground(
   feature.dispose = () => {
     if (disposed) return;
     disposed = true;
+    photographedSurfaces.dispose();
     waterSurface?.dispose();
     people.dispose();
+    facadeCleanup.get(feature)?.();
+    facadeCleanup.delete(feature);
   };
   let detailCount = 0;
   feature.traverse((object) => {

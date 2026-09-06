@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import {
+  createFacadeShellKit,
+  type FacadeShellSpec,
+  type FacadeShellResource,
+} from './walk-facade-shell';
 
 export interface FabricBuilding {
   readonly x: number;
@@ -8,6 +13,7 @@ export interface FabricBuilding {
   readonly rotation: number;
   readonly seed: number;
   readonly region: string;
+  readonly frontFace?: number;
 }
 export interface RegionalBuildingDescription {
   readonly floors: number;
@@ -71,6 +77,7 @@ export interface BuildingFabric {
   readonly buildingCount: number;
   readonly detailCount: number;
   setDetail(visible: boolean): void;
+  setView(position: { x: number; z: number }, distance?: number): void;
   dispose(): void;
 }
 
@@ -175,6 +182,7 @@ export function createBuildingEmissiveTexture(): THREE.DataTexture {
 }
 
 export function createBuildingFabricKit() {
+  const facadeKit = createFacadeShellKit();
   const box = new THREE.BoxGeometry(1, 1, 1),
     gable = gableGeometry();
   const hip = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4);
@@ -233,24 +241,6 @@ export function createBuildingFabricKit() {
     roughness: 0.83,
     metalness: 0.08,
   });
-  const trim = new THREE.MeshStandardMaterial({
-    color: 0xd5d1c3,
-    roughness: 0.76,
-  });
-  const glass = new THREE.MeshStandardMaterial({
-    color: 0x264957,
-    roughness: 0.31,
-    metalness: 0.26,
-    envMapIntensity: 0.7,
-  });
-  const recess = new THREE.MeshStandardMaterial({
-    color: 0x343d3b,
-    roughness: 0.91,
-  });
-  const shutter = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.84,
-  });
   let disposed = false;
 
   const batch = (
@@ -295,6 +285,10 @@ export function createBuildingFabricKit() {
         flatRoofs: Placement[] = [],
         gables: Placement[] = [],
         hips: Placement[] = [];
+      const cellSpecs = new Map<
+        string,
+        { specs: FacadeShellSpec[]; minX: number; maxX: number; minZ: number; maxZ: number }
+      >();
       const push = (
         list: Placement[],
         b: FabricBuilding,
@@ -316,26 +310,104 @@ export function createBuildingFabricKit() {
           color,
         });
       };
+      const core = (
+        b: FabricBuilding,
+        baseY: number,
+        width: number,
+        height: number,
+        depth: number,
+        color: number,
+        floors: number,
+      ) => {
+        // A .46m inset leaves every .32m window portal in front of the solid core.
+        push(
+          bodies,
+          b,
+          0,
+          baseY + height / 2,
+          0,
+          Math.max(1, width - 0.92),
+          height,
+          Math.max(1, depth - 0.92),
+          color,
+        );
+        const key = `${Math.floor(b.x / 128)}/${Math.floor(b.z / 128)}`;
+        const halfX =
+          (Math.abs(Math.cos(b.rotation)) * width + Math.abs(Math.sin(b.rotation)) * depth) / 2;
+        const halfZ =
+          (Math.abs(Math.sin(b.rotation)) * width + Math.abs(Math.cos(b.rotation)) * depth) / 2;
+        const cell = cellSpecs.get(key) ?? {
+          specs: [],
+          minX: b.x - halfX,
+          maxX: b.x + halfX,
+          minZ: b.z - halfZ,
+          maxZ: b.z + halfZ,
+        };
+        cell.minX = Math.min(cell.minX, b.x - halfX);
+        cell.maxX = Math.max(cell.maxX, b.x + halfX);
+        cell.minZ = Math.min(cell.minZ, b.z - halfZ);
+        cell.maxZ = Math.max(cell.maxZ, b.z + halfZ);
+        const style: FacadeShellSpec['style'] =
+          b.region === 'Vice City'
+            ? 'urban'
+            : b.region === 'Leonida Keys'
+              ? 'coastal'
+              : b.region === 'Ambrosia'
+                ? 'industrial'
+                : b.region === 'Port Gellhorn'
+                  ? 'weathered'
+                  : 'timber';
+        const c = Math.cos(b.rotation),
+          s = Math.sin(b.rotation);
+        const faces = [
+          [0, depth / 2, width, 0],
+          [0, -depth / 2, width, Math.PI],
+          [width / 2, 0, depth, Math.PI / 2],
+          [-width / 2, 0, depth, -Math.PI / 2],
+        ] as const;
+        faces.forEach(([x, z, span, yaw], index) => {
+          const frontage = index === (b.frontFace ?? 0);
+          cell.specs.push({
+            position: [b.x + x * c + z * s, baseY + 0.06, b.z - x * s + z * c],
+            rotationY: b.rotation + yaw,
+            width: span,
+            height,
+            floors,
+            seed: b.seed + index * 0.03,
+            style,
+            color,
+            bayWidth: style === 'industrial' ? 6.3 : detail === 'mobile' ? 4.8 : 4.1,
+            storefront:
+              baseY === 0 && frontage && ['urban', 'coastal', 'weathered'].includes(style),
+            balconies: frontage && (style === 'urban' || style === 'coastal') && b.seed > 0.35,
+          });
+        });
+        cellSpecs.set(key, cell);
+      };
       buildings.forEach((b) => {
         const d = describeRegionalBuilding(b.region, b.width, b.depth, b.seed),
           palette = PALETTES[b.region] ?? PALETTES['Port Gellhorn']!;
         const color = palette[Math.min(palette.length - 1, Math.floor(b.seed * palette.length))]!;
         if (d.tower) {
-          push(bodies, b, 0, 4.1, 0, b.width, 8.2, b.depth, color);
-          push(
-            bodies,
-            b,
-            0,
-            (d.height + 8.2) / 2,
-            0,
-            b.width * 0.79,
-            d.height - 8.2,
-            b.depth * 0.79,
-            color,
-          );
+          core(b, 0, b.width, 8.2, b.depth, color, 2);
+          core(b, 8.2, b.width * 0.79, d.height - 8.2, b.depth * 0.79, color, d.floors - 2);
           push(flatRoofs, b, 0, d.height + 0.32, 0, b.width * 0.81, 0.64, b.depth * 0.81, 0xc3c6bd);
         } else {
-          push(bodies, b, 0, d.height / 2, 0, b.width, d.height, b.depth, color);
+          const stepped = b.region === 'Vice City' && d.floors >= 4 && b.seed > 0.4;
+          const topWidth = b.width * (stepped ? 0.86 : 1);
+          const topDepth = b.depth * (stepped ? 0.9 : 1);
+          if (stepped) {
+            core(b, 0, b.width, d.floorHeight * 2, b.depth, color, 2);
+            core(
+              b,
+              d.floorHeight * 2,
+              b.width * 0.86,
+              d.height - d.floorHeight * 2,
+              b.depth * 0.9,
+              color,
+              d.floors - 2,
+            );
+          } else core(b, 0, b.width, d.height, b.depth, color, d.floors);
           if (d.roof === 'flat')
             push(
               flatRoofs,
@@ -343,9 +415,9 @@ export function createBuildingFabricKit() {
               0,
               d.height + 0.18,
               0,
-              b.width + 0.24,
+              topWidth + 0.24,
               0.36,
-              b.depth + 0.24,
+              topDepth + 0.24,
               0xa5a89c,
             );
           else
@@ -361,155 +433,119 @@ export function createBuildingFabricKit() {
               b.region === 'Leonida Keys' ? 0x8b9b94 : 0x827768,
             );
         }
+        // Roof equipment and parapets share the existing roof batch; they remain
+        // in the silhouette when the close facade cells are outside their range.
+        if (d.roof === 'flat') {
+          const setback = d.tower
+            ? 0.79
+            : b.region === 'Vice City' && d.floors >= 4 && b.seed > 0.4
+              ? 0.86
+              : 1;
+          const topWidth = b.width * setback;
+          const topDepth = b.depth * (d.tower ? 0.79 : setback < 1 ? 0.9 : 1);
+          push(
+            flatRoofs,
+            b,
+            topWidth * 0.15,
+            d.height + 0.82,
+            -topDepth * 0.18,
+            Math.min(3.8, topWidth * 0.23),
+            1.1,
+            Math.min(3, topDepth * 0.2),
+            0x9b9e95,
+          );
+          for (const side of [-1, 1]) {
+            push(
+              flatRoofs,
+              b,
+              0,
+              d.height + 0.52,
+              (side * topDepth) / 2,
+              topWidth,
+              0.65,
+              0.17,
+              0xc1beb0,
+            );
+            push(
+              flatRoofs,
+              b,
+              (side * topWidth) / 2,
+              d.height + 0.52,
+              0,
+              0.17,
+              0.65,
+              topDepth,
+              0xc1beb0,
+            );
+          }
+        } else if (b.region === 'Ambrosia' || b.region === 'Mount Kalaga') {
+          const rise = Math.min(4, Math.min(b.width, b.depth) * 0.19);
+          push(
+            flatRoofs,
+            b,
+            0,
+            d.height + rise + 0.6,
+            -b.depth * 0.22,
+            b.region === 'Ambrosia' ? Math.min(2.5, b.width * 0.2) : 0.72,
+            1.25,
+            b.region === 'Ambrosia' ? Math.min(4, b.depth * 0.25) : 0.72,
+            0x72796f,
+          );
+        }
       });
       batch(root, `${name}-walls`, box, wall, bodies, true);
       batch(root, `${name}-flat-roofs`, box, roof, flatRoofs);
       batch(root, `${name}-pitched-roofs`, gable, roof, gables);
       batch(root, `${name}-hip-roofs`, hip, roof, hips);
-      let detailRoot: THREE.Group | null = null,
-        detailCount = 0,
-        released = false;
-      const buildDetail = () => {
-        detailRoot = new THREE.Group();
-        detailRoot.name = `${name}-detail`;
-        root.add(detailRoot);
-        const panes: Placement[] = [],
-          frames: Placement[] = [],
-          dark: Placement[] = [],
-          accents: Placement[] = [];
-        buildings.forEach((b) => {
-          const d = describeRegionalBuilding(b.region, b.width, b.depth, b.seed);
-          const floorStride = detail === 'mobile' && d.floors > 12 ? 2 : 1;
-          for (let floor = 0; floor < d.floors; floor += floorStride) {
-            const y = (floor + 0.53) * d.floorHeight,
-              setback = d.tower && y > 8.2 ? 0.79 : 1;
-            const w = b.width * setback,
-              depth = b.depth * setback;
-            // Shared batches retain real floor height. Far detail is culled as a tile group.
-            for (const face of [0, 1, 2, 3]) {
-              const side = face < 2 ? -1 : 1,
-                alongX = face % 2 === 0;
-              const span = alongX ? w : depth;
-              const bays = Math.min(
-                detail === 'mobile' ? 7 : 12,
-                Math.max(2, Math.floor(span / 4.2)),
-              );
-              for (let bay = 0; bay < bays; bay++) {
-                const offset = -span / 2 + ((bay + 0.5) * span) / bays;
-                const x = alongX ? offset : side * (w / 2 + 0.065),
-                  z = alongX ? side * (depth / 2 + 0.065) : offset;
-                const winW = Math.min(2.35, (span / bays) * 0.58),
-                  winH = Math.min(1.85, d.floorHeight * 0.52);
-                push(
-                  dark,
-                  b,
-                  x,
-                  y,
-                  z,
-                  alongX ? winW + 0.22 : 0.16,
-                  winH + 0.22,
-                  alongX ? 0.16 : winW + 0.22,
-                );
-                push(
-                  panes,
-                  b,
-                  x + (alongX ? 0 : side * 0.09),
-                  y,
-                  z + (alongX ? side * 0.09 : 0),
-                  alongX ? winW : 0.035,
-                  winH,
-                  alongX ? 0.035 : winW,
-                );
-                push(
-                  frames,
-                  b,
-                  x,
-                  y - winH / 2 - 0.13,
-                  z,
-                  alongX ? winW + 0.38 : 0.34,
-                  0.12,
-                  alongX ? 0.34 : winW + 0.38,
-                );
-                if (b.region === 'Leonida Keys' || b.region === 'Port Gellhorn') {
-                  const shift = winW / 2 + 0.24;
-                  for (const sign of [-1, 1])
-                    push(
-                      accents,
-                      b,
-                      x + (alongX ? sign * shift : 0),
-                      y,
-                      z + (alongX ? 0 : sign * shift),
-                      alongX ? 0.3 : 0.22,
-                      winH + 0.12,
-                      alongX ? 0.22 : 0.3,
-                      b.region === 'Leonida Keys' ? 0x507f76 : 0x7e6957,
-                    );
-                }
-              }
-            }
-            if (floor > 0 && b.region === 'Vice City') {
-              // Four narrow cornices leave the facade readable without solid wraparound slabs.
-              for (const side of [-1, 1]) {
-                push(frames, b, 0, floor * d.floorHeight, (side * depth) / 2, w + 0.6, 0.16, 0.55);
-                push(frames, b, (side * w) / 2, floor * d.floorHeight, 0, 0.55, 0.16, depth);
-              }
-            }
-          }
-          if (d.roof === 'flat') {
-            const topW = b.width * (d.tower ? 0.79 : 1),
-              topD = b.depth * (d.tower ? 0.79 : 1);
-            push(
-              dark,
-              b,
-              topW * 0.18,
-              d.height + 1,
-              -topD * 0.15,
-              Math.min(4.5, topW * 0.25),
-              1.5,
-              Math.min(4, topD * 0.22),
-            );
-            for (const side of [-1, 1]) {
-              push(frames, b, 0, d.height + 0.7, (side * topD) / 2, topW, 0.85, 0.22);
-              push(frames, b, (side * topW) / 2, d.height + 0.7, 0, 0.22, 0.85, topD);
-            }
-          }
-          if (b.region === 'Port Gellhorn' || b.region === 'Leonida Keys') {
-            const front = b.depth / 2;
-            push(
-              accents,
-              b,
-              0,
-              2.9,
-              front + 0.65,
-              b.width * 0.86,
-              0.2,
-              1.5,
-              b.region === 'Leonida Keys' ? 0x82a69a : 0x9a6951,
-            );
-            for (const sign of [-1, 1])
-              push(frames, b, sign * b.width * 0.39, 1.48, front + 1.1, 0.14, 2.96, 0.14);
-          }
-        });
-        batch(detailRoot, `${name}-window-recesses`, box, recess, dark);
-        batch(detailRoot, `${name}-window-glass`, box, glass, panes);
-        batch(detailRoot, `${name}-cornices-and-sills`, box, trim, frames);
-        batch(detailRoot, `${name}-shutters-and-porches`, box, shutter, accents);
-        detailCount = panes.length + frames.length + dark.length + accents.length;
+      let detailRoot: THREE.Group | null = null;
+      let released = false;
+      const cells = new Map<string, FacadeShellResource>();
+      const ensureRoot = () => {
+        if (!detailRoot) {
+          detailRoot = new THREE.Group();
+          detailRoot.name = `${name}-detail`;
+          root.add(detailRoot);
+        }
+        return detailRoot;
+      };
+      const showCell = (key: string, close: boolean) => {
+        let cell = cells.get(key);
+        if (!cell) {
+          cell = facadeKit.create(cellSpecs.get(key)!.specs, `${name}-cell-${key}`);
+          cells.set(key, cell);
+          ensureRoot().add(cell.root);
+        }
+        cell.root.visible = true;
+        cell.setDetail(close);
       };
       return {
         root,
         buildingCount: buildings.length,
         get detailCount() {
-          return detailCount;
+          return [...cells.values()].reduce((sum, cell) => sum + cell.instanceCount, 0);
         },
         setDetail(visible) {
           if (released || disposed) return;
-          if (visible && !detailRoot) buildDetail();
+          if (visible) for (const key of cellSpecs.keys()) showCell(key, true);
           if (detailRoot) detailRoot.visible = visible;
+        },
+        setView(position, distance = detail === 'mobile' ? 220 : 300) {
+          if (released || disposed) return;
+          for (const [key, bounds] of cellSpecs) {
+            const dx = Math.max(bounds.minX - position.x, 0, position.x - bounds.maxX);
+            const dz = Math.max(bounds.minZ - position.z, 0, position.z - bounds.maxZ);
+            const range = Math.hypot(dx, dz);
+            if (range <= distance) showCell(key, range <= (detail === 'mobile' ? 55 : 80));
+            else if (cells.has(key)) cells.get(key)!.root.visible = false;
+          }
+          if (detailRoot)
+            detailRoot.visible = [...cells.values()].some((cell) => cell.root.visible);
         },
         dispose() {
           if (released) return;
           released = true;
+          for (const cell of cells.values()) cell.dispose();
+          cells.clear();
           root.traverse((o) => {
             if (o instanceof THREE.InstancedMesh) o.dispose();
           });
@@ -520,8 +556,8 @@ export function createBuildingFabricKit() {
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const item of [box, gable, hip, facadeTexture, wall, roof, trim, glass, recess, shutter])
-        item.dispose();
+      facadeKit.dispose();
+      for (const item of [box, gable, hip, facadeTexture, wall, roof]) item.dispose();
     },
   };
 }

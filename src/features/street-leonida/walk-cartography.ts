@@ -1,5 +1,6 @@
 import { publicPath } from '../explorer/public-path';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { gtadbToWorld, WORLD_METRES_PER_GTADB_UNIT, worldToGtadb } from './leonida-coordinates';
 import { ALL_LOCATION_ANCHORS, getLeonidaZoneProfile, PLACE_ENTRY_VIEWS } from './walk-geography';
@@ -10,7 +11,14 @@ import {
   type BuildingFabric,
   type FabricBuilding,
 } from './walk-building-fabric';
-import { simplifyRoadEdges, sampleRoadFixtures } from './walk-road-geometry';
+import {
+  simplifyRoadEdges,
+  sampleRoadFixtures,
+  classifyRoadBoundary,
+  findRoadFacingSide,
+  type RoadBoundary,
+} from './walk-road-geometry';
+import { createWalkSurfaceLibrary } from './walk-surface-assets';
 
 export interface GtadbGroundTileAddress {
   readonly z: 5;
@@ -441,15 +449,48 @@ export function createGtadbGroundTileStream(options: {
   const fabricKit = createBuildingFabricKit();
   const detail = options.detail ?? 'desktop';
   const detailDistance = Math.max(100, options.detailDistance ?? (detail === 'mobile' ? 220 : 300));
-  const curbGeometry = new THREE.BoxGeometry(1, 0.16, 0.28);
+  const curbProfile = new THREE.Shape();
+  curbProfile.moveTo(-0.14, -0.08);
+  curbProfile.lineTo(0.14, -0.08);
+  curbProfile.lineTo(0.14, 0.055);
+  curbProfile.lineTo(0.105, 0.08);
+  curbProfile.lineTo(-0.105, 0.08);
+  curbProfile.lineTo(-0.14, 0.055);
+  curbProfile.closePath();
+  const curbGeometry = new THREE.ExtrudeGeometry(curbProfile, {
+    depth: 1,
+    bevelEnabled: false,
+    steps: 1,
+  });
+  curbGeometry.translate(0, 0, -0.5);
+  curbGeometry.rotateY(Math.PI / 2);
+  const stripGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const drainParts = Array.from({ length: 7 }, (_, index) => {
+    const bar = new THREE.BoxGeometry(0.42, 0.025, 0.048);
+    bar.translate(0, 0, (index - 3) * 0.11);
+    return bar;
+  });
+  for (const side of [-1, 1]) {
+    const border = new THREE.BoxGeometry(0.04, 0.025, 0.78);
+    border.translate(side * 0.225, 0, 0);
+    drainParts.push(border);
+  }
+  const drainGeometry = mergeGeometries(drainParts)!;
+  drainParts.forEach((part) => part.dispose());
   const lampPoleGeometry = new THREE.CylinderGeometry(0.08, 0.11, 4.8, 7);
   const lampHeadGeometry = new THREE.BoxGeometry(0.6, 0.16, 0.22);
   const palmTrunkGeometry = new THREE.CylinderGeometry(0.12, 0.2, 5.8, 7);
   const palmCrownGeometry = createRoadPalmCrownGeometry();
   const curbMaterial = new THREE.MeshStandardMaterial({
-    color: 0x706d67,
+    color: 0xc3bfb3,
     roughness: 1,
   });
+  const gutterMaterial = new THREE.MeshStandardMaterial({ color: 0xb3afa3, roughness: 0.94 });
+  const vergeMaterial = new THREE.MeshStandardMaterial({ color: 0x9b967e, roughness: 1 });
+  const surfaces = createWalkSurfaceLibrary({ anisotropy: options.anisotropy });
+  surfaces.apply(curbMaterial, 'concrete', { normalScale: 0.25 });
+  surfaces.apply(gutterMaterial, 'concrete', { normalScale: 0.2 });
+  surfaces.apply(vergeMaterial, 'gravel', { normalScale: 0.35 });
   const lampPoleMaterial = new THREE.MeshStandardMaterial({
     color: 0x29323a,
     roughness: 0.48,
@@ -474,7 +515,7 @@ export function createGtadbGroundTileStream(options: {
   const meshes = new Map<string, THREE.Mesh>();
   const buildingFabrics = new Map<string, BuildingFabric>();
   const roadDetailGroups = new Map<string, THREE.Group>();
-  const roadSegments = new Map<string, readonly GtadbRoadEdgeSegment[]>();
+  const roadSegments = new Map<string, readonly RoadBoundary[]>();
   const buildingFootprints = new Map<string, readonly GtadbBuildingFootprint[]>();
   const collisionGroups = new Map<string, AxisAlignedRectangle[]>();
   const collisions: AxisAlignedRectangle[] = [];
@@ -533,7 +574,7 @@ export function createGtadbGroundTileStream(options: {
   const addRoadDetails = (
     key: string,
     tile: GtadbGroundTileAddress,
-    segments: readonly GtadbRoadEdgeSegment[],
+    segments: readonly RoadBoundary[],
     includeFurniture: boolean,
   ): void => {
     removeRoadDetails(key);
@@ -543,14 +584,30 @@ export function createGtadbGroundTileStream(options: {
     group.userData.evidence = 'APPROXIMATE';
     group.userData.source = 'GTADB raster road boundaries';
     group.userData.includeFurniture = includeFurniture;
+    group.userData.furnitureBucket = currentPosition
+      ? `${Math.floor(currentPosition.x / 64)}/${Math.floor(currentPosition.z / 64)}`
+      : '';
     const tileBounds = getGtadbTileWorldBounds(tile);
-    const curbs = new THREE.InstancedMesh(curbGeometry, curbMaterial, segments.length);
+    const supported = segments.filter((segment) => {
+      const x = tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT;
+      const z = tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT;
+      return !doesGtadbFootprintOverlapArrivalCorridor({ minX: x, maxX: x, minZ: z, maxZ: z });
+    });
+    const urban = supported.filter((segment) => segment.kind === 'urban');
+    const near = (segment: GtadbRoadEdgeSegment) =>
+      includeFurniture &&
+      currentPosition &&
+      Math.hypot(
+        tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT - currentPosition.x,
+        tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT - currentPosition.z,
+      ) < (detail === 'mobile' ? 110 : 160);
+    const curbs = new THREE.InstancedMesh(curbGeometry, curbMaterial, urban.length);
     const dummy = new THREE.Object3D();
-    segments.forEach((segment, index) => {
+    urban.forEach((segment, index) => {
       dummy.position.set(
-        tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT,
-        0.07,
-        tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT,
+        tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT + segment.outwardX * 0.14,
+        0.125,
+        tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT + segment.outwardY * 0.14,
       );
       dummy.rotation.set(0, -segment.rotation, 0);
       dummy.scale.set(segment.length * WORLD_METRES_PER_GTADB_UNIT, 1, 1);
@@ -560,15 +617,71 @@ export function createGtadbGroundTileStream(options: {
     curbs.instanceMatrix.needsUpdate = true;
     curbs.name = 'gtadb-road-curbs';
     curbs.receiveShadow = true;
-    group.add(curbs);
+    if (urban.length) group.add(curbs);
+    else curbs.dispose();
 
-    const fixtures = includeFurniture ? sampleRoadFixtures(segments, 48) : [];
+    const strips = (
+      edges: readonly RoadBoundary[],
+      material: THREE.Material,
+      name: string,
+      offset: number,
+      width: number,
+    ) => {
+      if (!edges.length) return;
+      const mesh = new THREE.InstancedMesh(stripGeometry, material, edges.length);
+      edges.forEach((edge, index) => {
+        dummy.position.set(
+          tileBounds.minX + edge.x * 2 + edge.outwardX * offset,
+          0.065,
+          tileBounds.minZ + edge.y * 2 + edge.outwardY * offset,
+        );
+        dummy.rotation.set(0, -edge.rotation, 0);
+        dummy.scale.set(edge.length * 2, 0.016, width);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(index, dummy.matrix);
+      });
+      mesh.name = name;
+      mesh.receiveShadow = true;
+      mesh.computeBoundingSphere();
+      group.add(mesh);
+    };
+    strips(urban.filter(near), gutterMaterial, 'gtadb-road-gutters', -0.24, 0.48);
+    strips(
+      supported.filter((edge) => edge.kind === 'rural' && near(edge)),
+      vergeMaterial,
+      'gtadb-natural-verges',
+      0.45,
+      0.9,
+    );
+    const drains = sampleRoadFixtures(urban, 32).filter(near);
+    if (drains.length) {
+      const grates = new THREE.InstancedMesh(drainGeometry, lampPoleMaterial, drains.length);
+      drains.forEach((edge, index) => {
+        dummy.position.set(
+          tileBounds.minX + edge.x * 2 - edge.outwardX * 0.22,
+          0.077,
+          tileBounds.minZ + edge.y * 2 - edge.outwardY * 0.22,
+        );
+        dummy.rotation.set(0, -edge.rotation - Math.PI / 2, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        grates.setMatrixAt(index, dummy.matrix);
+      });
+      grates.name = 'gtadb-road-drain-grates';
+      grates.receiveShadow = true;
+      grates.computeBoundingSphere();
+      group.add(grates);
+    }
+
+    const fixtures = sampleRoadFixtures(urban, 48).filter(near);
     if (fixtures.length > 0) {
       const poles = new THREE.InstancedMesh(lampPoleGeometry, lampPoleMaterial, fixtures.length);
       const heads = new THREE.InstancedMesh(lampHeadGeometry, lampHeadMaterial, fixtures.length);
       fixtures.forEach((segment, index) => {
-        const x = tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT;
-        const z = tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT;
+        const x =
+          tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT + segment.outwardX * 0.85;
+        const z =
+          tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT + segment.outwardY * 0.85;
         dummy.rotation.set(0, -segment.rotation, 0);
         dummy.scale.set(1, 1, 1);
         dummy.position.set(x, 2.48, z);
@@ -588,14 +701,16 @@ export function createGtadbGroundTileStream(options: {
     const region = getLeonidaZoneProfile(getGtadbTileWorldCenter(tile)).name;
     const palms =
       includeFurniture && ['Vice City', 'Leonida Keys', 'Port Gellhorn'].includes(region)
-        ? sampleRoadFixtures(segments, 68)
+        ? sampleRoadFixtures(urban, 68).filter(near)
         : [];
     if (palms.length > 0) {
       const trunks = new THREE.InstancedMesh(palmTrunkGeometry, palmTrunkMaterial, palms.length);
       const crowns = new THREE.InstancedMesh(palmCrownGeometry, palmCrownMaterial, palms.length);
       palms.forEach((segment, index) => {
-        const x = tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT;
-        const z = tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT;
+        const x =
+          tileBounds.minX + segment.x * WORLD_METRES_PER_GTADB_UNIT + segment.outwardX * 1.35;
+        const z =
+          tileBounds.minZ + segment.y * WORLD_METRES_PER_GTADB_UNIT + segment.outwardY * 1.35;
         dummy.rotation.set(0, deterministicUnit(tile.x, tile.y, index) * Math.PI * 2, 0);
         dummy.scale.set(1, 1, 1);
         dummy.position.set(x, 2.98, z);
@@ -624,23 +739,22 @@ export function createGtadbGroundTileStream(options: {
       const includeFurniture =
         Math.max(Math.abs(tile.x - center.x), Math.abs(tile.y - center.y)) <= 1;
       const existing = roadDetailGroups.get(key);
-      if (existing?.userData.includeFurniture === includeFurniture) continue;
+      const bucket = currentPosition
+        ? `${Math.floor(currentPosition.x / 64)}/${Math.floor(currentPosition.z / 64)}`
+        : '';
+      if (
+        existing?.userData.includeFurniture === includeFurniture &&
+        (!includeFurniture || existing?.userData.furnitureBucket === bucket)
+      )
+        continue;
       addRoadDetails(key, tile, segments, includeFurniture);
     }
   };
 
-  const hasCloseDetail = (tile: GtadbGroundTileAddress): boolean => {
-    if (!currentPosition) return false;
-    const bounds = getGtadbTileWorldBounds(tile);
-    const dx = Math.max(bounds.minX - currentPosition.x, 0, currentPosition.x - bounds.maxX);
-    const dz = Math.max(bounds.minZ - currentPosition.z, 0, currentPosition.z - bounds.maxZ);
-    return Math.hypot(dx, dz) <= detailDistance;
-  };
   const syncBuildingDetails = (): void => {
-    for (const [key, fabric] of buildingFabrics) {
-      const tile = meshes.get(key)?.userData.tile as GtadbGroundTileAddress | undefined;
-      if (tile) fabric.setDetail(hasCloseDetail(tile));
-    }
+    if (currentPosition)
+      for (const fabric of buildingFabrics.values())
+        fabric.setView(currentPosition, detailDistance);
     refreshBuildingStats();
   };
   const addBuildings = (
@@ -683,6 +797,11 @@ export function createGtadbGroundTileStream(options: {
           (orientation?.depth ?? footprint.height) * WORLD_METRES_PER_GTADB_UNIT * 0.94,
         ),
         rotation: orientation?.rotation ?? 0,
+        frontFace: findRoadFacingSide(
+          { x: (x - tileBounds.minX) / 2, y: (z - tileBounds.minZ) / 2 },
+          orientation?.rotation ?? 0,
+          roadSegments.get(key) ?? [],
+        ),
         seed: deterministicUnit(tile.x, tile.y, footprint.x, footprint.y),
         region: getLeonidaZoneProfile({ x, z }).name,
       };
@@ -698,7 +817,7 @@ export function createGtadbGroundTileStream(options: {
       key,
       sampled.map((footprint) => getGtadbFootprintWorldBounds(tile, footprint)),
     );
-    fabric.setDetail(hasCloseDetail(tile));
+    if (currentPosition) fabric.setView(currentPosition, detailDistance);
     refreshBuildingStats();
   };
 
@@ -712,7 +831,10 @@ export function createGtadbGroundTileStream(options: {
       currentPosition = { ...position };
       syncBuildingDetails();
       const nextCenterKey = tileKey(center);
-      if (nextCenterKey === centerKey) return;
+      if (nextCenterKey === centerKey) {
+        syncRoadDetails(center);
+        return;
+      }
       centerKey = nextCenterKey;
 
       const desiredTiles = listGtadbGroundTiles(position, options.radius);
@@ -746,7 +868,6 @@ export function createGtadbGroundTileStream(options: {
               4,
             );
             buildingFootprints.set(key, footprints);
-            addBuildings(key, tile, footprints);
             const segments = simplifyRoadEdges(
               extractGtadbRoadEdgeSegments(
                 imageData.data,
@@ -757,7 +878,22 @@ export function createGtadbGroundTileStream(options: {
               ),
               detail === 'mobile' ? 1.3 : 0.85,
             );
-            roadSegments.set(key, segments);
+            const boundaries = segments.map((edge) =>
+              classifyRoadBoundary(edge, (x, y) => {
+                const column = Math.floor(x),
+                  row = Math.floor(y);
+                if (column < 0 || row < 0 || column >= imageData.width || row >= imageData.height)
+                  return 'unknown';
+                const offset = (row * imageData.width + column) * 4;
+                return classifyGtadbSurfacePixel(
+                  imageData.data[offset]!,
+                  imageData.data[offset + 1]!,
+                  imageData.data[offset + 2]!,
+                );
+              }),
+            );
+            roadSegments.set(key, boundaries);
+            addBuildings(key, tile, footprints);
             if (currentCenter) syncRoadDetails(currentCenter);
             const activeTile = meshes.get(key);
             if (activeTile) {
@@ -828,11 +964,16 @@ export function createGtadbGroundTileStream(options: {
       geometry.dispose();
       fabricKit.dispose();
       curbGeometry.dispose();
+      stripGeometry.dispose();
+      drainGeometry.dispose();
+      surfaces.dispose();
       lampPoleGeometry.dispose();
       lampHeadGeometry.dispose();
       palmTrunkGeometry.dispose();
       palmCrownGeometry.dispose();
       curbMaterial.dispose();
+      gutterMaterial.dispose();
+      vergeMaterial.dispose();
       lampPoleMaterial.dispose();
       lampHeadMaterial.dispose();
       palmTrunkMaterial.dispose();

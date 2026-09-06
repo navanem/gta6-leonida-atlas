@@ -2,6 +2,23 @@
 
 Release history, newest first.
 
+## v0.8.0 — 2026-09-06
+
+**Released: deeper streets and researched regional scenes.**
+
+The 3D explorer adds coherent local scenes around all six regional arrivals: a bakery court and market in Vice City, working marina in the Keys, stilt structures in Grassrivers, weathered retail in Port Gellhorn, an industrial service yard in Ambrosia, and trail shelter and stream access in Kalaga.
+
+- Fifteen short discoveries link to official Rockstar descriptions and public images in place details, search and Evidence. Source observations remain unpositioned; regional travel uses existing reviewed arrivals.
+- Window openings have real depth and view-dependent room interiors, with balconies, storefronts, roof setbacks and service details. Mapped urban roads gain curbs, gutters and drainage; rural roads keep softer verges.
+- Five locally served CC0 photographic surface sets provide color, normal and roughness detail for asphalt, concrete, rock, wood and gravel. Source manifests retain licensing, dimensions and checksums.
+- Contact shading, higher-resolution nearby shadows and restrained highlight glow improve depth. A direct-render fallback covers unavailable HDR targets or failed effect shaders.
+- Shared GPU texture sources, spatial facade detail and leaner native forest geometry bound the extra rendering cost. Regional terrain clears the actual accepted scenery footprints.
+- Evidence and regional travel work with native keyboard activation. Existing accounts, local workspaces, selected destinations and private deployment Analytics configuration are preserved.
+
+Validation covers geometry, parcel occupancy, terrain clearance, source provenance, texture reuse and late disposal, rendering state and fallback, plus Chromium regional views and navigation. The test environment uses SwiftShader software rendering, so it does not establish hardware frame rates or real iOS graphics performance.
+
+Research uses [Only in Leonida](https://www.rockstargames.com/VI/only-in-leonida) and its official public imagery. The catalogue also links the [Extended Look](https://www.rockstargames.com/VI/an-extended-look) without deriving unverified footage details. Decorative placements and unmeasured relief remain **APPROXIMATE**. This browser reconstruction retains visible simplifications; exact game models, dimensions and surveyed terrain are not available in the project.
+
 ## v0.7.0 — 2026-09-06
 
 **Released: a fuller, living 3D Leonida.**

@@ -74,9 +74,9 @@ const EXPECTED_HERO_DETAILS: Readonly<Record<RockstarReferenceRegion, readonly s
     'kalaga-forest-understory',
   ],
   'vice-city': [
-    'vice-city-arrival-facade-surface-panels',
-    'vice-city-arrival-endcap-window-rhythm',
-    'vice-city-arrival-balcony-rails',
+    'vice-city-arrival-facade-shells-walls-home',
+    'vice-city-arrival-facade-shells-interiors',
+    'vice-city-arrival-facade-shells-open-rails',
     'vice-city-arrival-secondary-signage',
     'vice-city-arrival-traffic-silhouettes',
   ],

@@ -10,6 +10,7 @@ import {
 import { mountExplorer } from './mount-explorer';
 import { projectPath } from './public-path';
 import { resolveExplorerEntry } from './initial-entry';
+import RegionalResearch from '../library/RegionalResearch';
 import './explorer.css';
 
 export interface ExplorerViewProps {
@@ -361,6 +362,7 @@ export default function ExplorerView({
             </button>
           </header>
           <div className="explorer-dialog-copy">
+            <RegionalResearch travel="explorer" />
             <p>
               Rockstar visual evidence can establish official identity or existence. GTADB / Map GTA
               supplies community-estimated placement. Geometry between evidence points is an

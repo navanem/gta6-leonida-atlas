@@ -2,6 +2,22 @@
 
 Release history, newest first.
 
+## v0.6.2 — 2026-09-06
+
+**Released: public collaboration and security hardening.**
+
+The repository is now public and ready for community forks, corrections and focused pull requests. Contribution guidelines, a code of conduct, issue forms, a pull-request template and a security policy define how to propose changes and report vulnerabilities. The default branch requires a pull request, a successful Quality check, resolved conversations and linear history; force pushes and branch deletion are blocked.
+
+Continuous integration now uses SHA-pinned GitHub Actions with read-only default permissions. Dependabot groups compatible production, development and workflow updates, while keeping Node type definitions on the supported Node 22 major. Valid dependency updates were consolidated and tested without accepting unrelated lockfile downgrades.
+
+GitHub private vulnerability reporting, dependency alerts, secret scanning, push protection and default CodeQL analysis are enabled. The initial CodeQL scan completed successfully with no findings, GitHub reported no unresolved secrets or dependency vulnerabilities, and the repository contained no workflow caches at publication time.
+
+This maintenance release does not change public map data, coordinates, licensing, account boundaries or the application’s local-first behavior.
+
+### Verification
+
+Frozen installation, strict TypeScript, lint, 458 unit/integration tests and the production build passed. The existing browser suite passed in Chromium, including the public contribution changes. Git integrity and history scans found no corruption or recognized credential patterns; the local checkout and remote `main` matched before publication.
+
 ## v0.6.1 — 2026-09-05
 
 **Released: visitor measurement and release history.**

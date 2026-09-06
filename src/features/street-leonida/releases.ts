@@ -11,6 +11,27 @@ export interface LeonidaAtlasRelease {
 /** Retained public history starts at v0.5.0; the newest release stays first. */
 export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
   {
+    version: 'v0.8.0',
+    date: '2026-09-06',
+    title: 'Deeper streets and researched regional scenes',
+    summary:
+      'Fifteen sourced discoveries, six richer regional arrivals, deep window interiors, photographic surfaces and contact shading.',
+    status: 'public',
+    highlights: [
+      'Official Rockstar regional descriptions and public images support fifteen short discoveries in place details, search and the explorer Evidence panel. Unpositioned observations lead to existing regional arrivals without inventing exact map pins.',
+      'Vice City gains a shaded bakery court and market; the Keys a working marina; Grassrivers stilt structures; Port Gellhorn weathered shops; Ambrosia a service yard; and Kalaga a trail shelter and stream access.',
+      'Recessed window openings, view-dependent room interiors, balconies, setbacks and storefronts add architectural depth. Nearby mapped roads gain curbs, gutters and drainage where their source context is urban.',
+      'Locally hosted CC0 photographic color, normal and roughness maps cover asphalt, concrete, rock, timber and gravel. Shared texture sources and spatial detail limits keep the added resources bounded.',
+      'Depth-based contact shading, sharper nearby shadows and restrained highlight glow strengthen grounding. Unsupported effect configurations retain direct rendering. Native trees have finer silhouettes and more efficient forest geometry.',
+      'GTADB coordinates, CC BY 4.0 attribution and existing releases remain available. Decorative parcels and unmeasured relief stay APPROXIMATE; the source material does not establish exact dimensions or positions.',
+    ],
+    verification: [
+      'Unit and integration checks cover source claims, facade clearance, parcel occupancy, road context, terrain clearance, texture sharing, asynchronous disposal and rendering fallback.',
+      'Chromium checks cover regional views, selected destinations, native keyboard activation of Evidence and travel, return to the atlas and touch controls.',
+      'The rendering checks use Chromium with SwiftShader software rendering. Hardware frame rates and real iOS graphics performance are not established by this environment.',
+    ],
+  },
+  {
     version: 'v0.7.0',
     date: '2026-09-06',
     title: 'A fuller, living 3D Leonida',

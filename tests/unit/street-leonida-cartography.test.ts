@@ -344,4 +344,79 @@ describe('Street Leonida GTADB ground cartography', () => {
     expect(edges).toContainEqual({ x: 1.5, y: 0, length: 1, rotation: 0 });
     expect(edges).toContainEqual({ x: 1.5, y: 4, length: 1, rotation: 0 });
   });
+
+  it.each(['pavement', 'vegetation'] as const)(
+    'builds the appropriate physical roadside against source %s',
+    (outside) => {
+      const pixels = new Uint8ClampedArray(256 * 256 * 4);
+      for (let y = 0; y < 256; y++)
+        for (let x = 0; x < 256; x++) {
+          pixels.set(
+            x >= 124 && x < 132
+              ? [83, 83, 83, 255]
+              : outside === 'pavement'
+                ? [114, 114, 114, 255]
+                : [194, 216, 131, 255],
+            (y * 256 + x) * 4,
+          );
+        }
+      vi.stubGlobal('document', {
+        createElement: () => ({
+          getContext: () => ({
+            drawImage() {},
+            getImageData: () => ({ data: pixels, width: 256, height: 256 }),
+          }),
+        }),
+      });
+      const loads: Array<() => void> = [];
+      vi.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+        const texture = new THREE.Texture<HTMLImageElement>();
+        texture.image = {} as HTMLImageElement;
+        loads.push(() => onLoad?.(texture));
+        return texture;
+      });
+      const stream = createGtadbGroundTileStream({ radius: 0, anisotropy: 1 });
+      const tile = { z: 5, x: 10, y: 30 } as const;
+      stream.sync(getGtadbTileWorldCenter(tile));
+      loads.forEach((load) => load());
+      const curbs = stream.root.getObjectByName('gtadb-road-curbs');
+      const verges = stream.root.getObjectByName('gtadb-natural-verges');
+      if (outside === 'vegetation') {
+        expect(curbs).toBeUndefined();
+        expect(verges).toBeInstanceOf(THREE.InstancedMesh);
+        expect(stream.root.getObjectByName('gtadb-road-drain-grates')).toBeUndefined();
+      } else {
+        expect(curbs).toBeInstanceOf(THREE.InstancedMesh);
+        expect(verges).toBeUndefined();
+        const grates = stream.root.getObjectByName(
+          'gtadb-road-drain-grates',
+        ) as THREE.InstancedMesh;
+        expect(grates.count).toBeGreaterThan(0);
+        const matrix = new THREE.Matrix4();
+        grates.getMatrixAt(0, matrix);
+        stream.root.updateMatrixWorld(true);
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(0, 5, 0).applyMatrix4(matrix),
+          new THREE.Vector3(0, -1, 0),
+        );
+        expect(ray.intersectObject(grates)).not.toHaveLength(0);
+        ray.set(new THREE.Vector3(0, 5, 0.055).applyMatrix4(matrix), new THREE.Vector3(0, -1, 0));
+        expect(ray.intersectObject(grates)).toHaveLength(0);
+        const poles = stream.root.getObjectByName('gtadb-road-lamp-poles') as THREE.InstancedMesh;
+        const tileBounds = getGtadbTileWorldBounds(tile);
+        for (let index = 0; index < poles.count; index++) {
+          poles.getMatrixAt(index, matrix);
+          const x = new THREE.Vector3().setFromMatrixPosition(matrix).x;
+          expect(x < tileBounds.minX + 124 * 2 || x > tileBounds.minX + 132 * 2).toBe(true);
+        }
+        const releasedPoles = vi.spyOn(poles, 'dispose');
+        const center = getGtadbTileWorldCenter(tile);
+        stream.sync({ x: center.x, z: center.z + 100 });
+        expect(stream.root.getObjectByName('gtadb-road-lamp-poles')).not.toBe(poles);
+        expect(releasedPoles).toHaveBeenCalledOnce();
+        expect(stream.root.userData.tileCount).toBe(1);
+      }
+      stream.dispose();
+    },
+  );
 });

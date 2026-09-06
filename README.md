@@ -56,7 +56,7 @@ The optional 3D explorer preserves the project's existing reconstructed world. T
 
 <a href="https://gta6state.com/gta6-leonida-atlas/"><img src="https://img.shields.io/badge/OPEN_THE_LIVE_ATLAS-FF4F91?style=for-the-badge&logo=googlemaps&logoColor=white" alt="Open the live Leonida Atlas"></a>
 
-Current release: **v0.7.0** · [Release notes](RELEASES.md) · [All GitHub releases](https://github.com/navanem/gta6-leonida-atlas/releases)
+Current release: **v0.8.0** · [Release notes](RELEASES.md) · [All GitHub releases](https://github.com/navanem/gta6-leonida-atlas/releases)
 
 </div>
 

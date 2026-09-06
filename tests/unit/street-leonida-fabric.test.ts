@@ -114,6 +114,63 @@ describe('Source-led regional building fabric', () => {
     kit.dispose();
   });
 
+  it('reveals real rooms ahead of the opaque building core on rotated footprints', () => {
+    const kit = createBuildingFabricKit();
+    const fabric = kit.create(
+      [{ x: 0, z: 0, width: 20, depth: 16, rotation: 0.4, seed: 0.3, region: 'Port Gellhorn' }],
+      'cavity',
+      'desktop',
+    );
+    fabric.setDetail(true);
+    fabric.root.updateMatrixWorld(true);
+    const portals: THREE.InstancedMesh[] = [];
+    fabric.root.traverse((object) => {
+      if (object instanceof THREE.InstancedMesh && object.name.endsWith('-interiors'))
+        portals.push(object);
+    });
+    expect(portals.length).toBeGreaterThan(0);
+    const transform = new THREE.Matrix4();
+    portals[0]!.getMatrixAt(0, transform);
+    const center = new THREE.Vector3().setFromMatrixPosition(transform);
+    const outward = new THREE.Vector3(0, 0, 1).transformDirection(transform);
+    const ray = new THREE.Raycaster(
+      center.clone().addScaledVector(outward, 2),
+      outward.clone().negate(),
+    );
+    expect(ray.intersectObject(fabric.root, true)[0]!.object).toBe(portals[0]);
+    fabric.dispose();
+    kit.dispose();
+  });
+
+  it('activates facade cells locally without adding detail to a distant building in the same source tile', () => {
+    const kit = createBuildingFabricKit();
+    const fabric = kit.create(
+      [20, 440].map((x) => ({
+        x,
+        z: 0,
+        width: 20,
+        depth: 16,
+        rotation: 0,
+        seed: 0.3,
+        region: 'Port Gellhorn',
+      })),
+      'cells',
+      'desktop',
+    );
+    expect(typeof fabric.setView).toBe('function');
+    fabric.setView({ x: 20, z: 20 }, 100);
+    const active = fabric.root.getObjectByName('cells-detail')!;
+    expect(active.children).toHaveLength(1);
+    expect(fabric.buildingCount).toBe(2);
+    const firstCell = active.children[0]!;
+    fabric.setView({ x: 440, z: 20 }, 100);
+    expect(firstCell.visible).toBe(false);
+    expect(active.children.filter((child) => child.visible)).toHaveLength(1);
+    expect(fabric.buildingCount).toBe(2);
+    fabric.dispose();
+    kit.dispose();
+  });
+
   it('joins a stepped raster edge into a source-tolerant diagonal with metric fixture spacing', () => {
     const steps = Array.from({ length: 20 }, (_, i) => [
       { x: i + 0.5, y: i, length: 1, rotation: 0 },

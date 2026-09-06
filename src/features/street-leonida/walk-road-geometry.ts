@@ -5,6 +5,65 @@ export interface RoadEdge {
   readonly rotation: number;
   readonly pathId?: number;
 }
+export interface RoadBoundary extends RoadEdge {
+  readonly kind: 'urban' | 'rural' | 'water' | 'unknown';
+  readonly outwardX: number;
+  readonly outwardY: number;
+}
+
+/** Keep road-side interpretation tied to the pixels on either side of the boundary. */
+export function classifyRoadBoundary(
+  edge: RoadEdge,
+  sample: (x: number, y: number) => string,
+): RoadBoundary {
+  const nx = -Math.sin(edge.rotation),
+    ny = Math.cos(edge.rotation);
+  const plus = sample(edge.x + nx * 1.5, edge.y + ny * 1.5);
+  const minus = sample(edge.x - nx * 1.5, edge.y - ny * 1.5);
+  const sign =
+    minus === 'road' && plus !== 'road' ? 1 : plus === 'road' && minus !== 'road' ? -1 : 0;
+  const outside = sign > 0 ? plus : minus;
+  const kind = !sign
+    ? 'unknown'
+    : outside === 'pavement'
+      ? 'urban'
+      : outside === 'ground' || outside === 'vegetation'
+        ? 'rural'
+        : outside === 'water'
+          ? 'water'
+          : 'unknown';
+  return { ...edge, kind, outwardX: nx * sign || 0, outwardY: ny * sign || 0 };
+}
+
+/** Returns front/back/right/left in the building's own rotated frame. */
+export function findRoadFacingSide(
+  position: { x: number; y: number },
+  yaw: number,
+  edges: readonly RoadEdge[],
+): number {
+  let nearest = Infinity,
+    directionX = 0,
+    directionY = 1;
+  for (const edge of edges) {
+    const c = Math.cos(edge.rotation),
+      s = Math.sin(edge.rotation);
+    const projection = Math.max(
+      -edge.length / 2,
+      Math.min(edge.length / 2, (position.x - edge.x) * c + (position.y - edge.y) * s),
+    );
+    const dx = edge.x + projection * c - position.x,
+      dy = edge.y + projection * s - position.y;
+    const distance = dx * dx + dy * dy;
+    if (distance < nearest) {
+      nearest = distance;
+      directionX = dx;
+      directionY = dy;
+    }
+  }
+  const x = directionX * Math.cos(yaw) - directionY * Math.sin(yaw);
+  const z = directionX * Math.sin(yaw) + directionY * Math.cos(yaw);
+  return Math.abs(x) > Math.abs(z) ? (x >= 0 ? 2 : 3) : z >= 0 ? 0 : 1;
+}
 type Point = { x: number; y: number };
 const key = (p: Point) => `${Math.round(p.x * 100)},${Math.round(p.y * 100)}`;
 
@@ -98,13 +157,13 @@ export function simplifyRoadEdges(edges: readonly RoadEdge[], tolerance = 1): Ro
 }
 
 /** Spacing uses accumulated metres along each connected edge, never a segment index. */
-export function sampleRoadFixtures(
-  edges: readonly RoadEdge[],
+export function sampleRoadFixtures<T extends RoadEdge>(
+  edges: readonly T[],
   spacingMetres: number,
   metresPerPixel = 2,
-): RoadEdge[] {
+): T[] {
   const spacing = Math.max(1, spacingMetres / metresPerPixel),
-    output: RoadEdge[] = [];
+    output: T[] = [];
   let remaining = spacing / 2,
     path: number | undefined;
   for (const edge of edges) {
@@ -116,6 +175,7 @@ export function sampleRoadFixtures(
       s = Math.sin(edge.rotation);
     while (remaining < edge.length) {
       output.push({
+        ...edge,
         x: edge.x + (remaining - edge.length / 2) * c,
         y: edge.y + (remaining - edge.length / 2) * s,
         length: 0,

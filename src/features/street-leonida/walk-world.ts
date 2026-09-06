@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createWalkOutdoorEnvironment } from './walk-outdoor-lighting';
+import { createWalkPostprocessing, type WalkPostprocessing } from './walk-postprocessing';
 
 import {
   collidesWithBuildings,
@@ -254,8 +255,8 @@ export const WALK_WORLD_RENDER_CONFIG = Object.freeze({
   environmentIntensity: 0.75,
   toneMappingExposure: 0.94,
   shadowFilter: 'pcf',
-  shadowMapSize: 1_024,
-  shadowDistanceMetres: 280,
+  shadowMapSize: 2_048,
+  shadowDistanceMetres: 180,
 });
 
 export function configureWalkSunShadow(
@@ -271,7 +272,8 @@ export function configureWalkSunShadow(
   light.shadow.camera.top = shadowHalfDistance;
   light.shadow.camera.bottom = -shadowHalfDistance;
   light.shadow.camera.near = 8;
-  light.shadow.camera.far = WALK_WORLD_RENDER_CONFIG.shadowDistanceMetres + 48;
+  // The sun rig is 220m from its target; a tighter XY crop must not clip ground in Z.
+  light.shadow.camera.far = 480;
   light.shadow.camera.updateProjectionMatrix();
   light.shadow.bias = -0.00028;
   light.shadow.normalBias = 0.045;
@@ -1320,6 +1322,13 @@ export function initializeWalkableWorld(
   const camera = new THREE.PerspectiveCamera(72, 1, 0.08, WALK_WORLD_RENDER_CONFIG.cameraFarMetres);
   camera.rotation.order = 'YXZ';
   scene.add(camera);
+  let postprocessing: WalkPostprocessing | null = null;
+  try {
+    postprocessing = createWalkPostprocessing(renderer, coarsePointer);
+    root.dataset.walkPostprocessing = 'depth-contact';
+  } catch {
+    root.dataset.walkPostprocessing = 'direct-fallback';
+  }
 
   const oceanMaterial = createStateWaterContinuityMaterial();
   const ocean = new THREE.Mesh(
@@ -1645,6 +1654,7 @@ export function initializeWalkableWorld(
     pitch = -0.03;
     syncPlayerData();
     closeMap();
+    dom.evidenceDialog?.close();
     setActive(true, false);
   }
 
@@ -1797,6 +1807,11 @@ export function initializeWalkableWorld(
       const key = event.key.toLowerCase();
       if (key === 'escape' && !standalone && shell?.dataset.walkExpanded === 'true') {
         setExpanded(false);
+        return;
+      }
+      // Native activation of toolbar buttons and research links takes precedence
+      // over movement/interaction shortcuts when those controls have focus.
+      if (target instanceof HTMLElement && target.closest('button, a[href], summary, [role="button"]')) {
         return;
       }
       if (
@@ -1984,6 +1999,8 @@ export function initializeWalkableWorld(
     const pixelRatio = Math.min(devicePixelRatio, budgetPixelRatio);
     renderer.setPixelRatio(pixelRatio);
     renderer.setSize(width, height, false);
+    const drawingSize = renderer.getDrawingBufferSize(new THREE.Vector2());
+    postprocessing?.resize(drawingSize.x, drawingSize.y);
     root.dataset.walkPixelRatio = pixelRatio.toFixed(3);
     root.dataset.walkPixelBudget = String(pixelBudget);
     camera.aspect = width / height;
@@ -2119,7 +2136,17 @@ export function initializeWalkableWorld(
       }
     }
     if (simulationActive) {
-      renderer.render(scene, camera);
+      if (postprocessing) {
+        try {
+          postprocessing.render(scene, camera);
+        } catch {
+          postprocessing.dispose();
+          postprocessing = null;
+          renderer.setRenderTarget(null);
+          root.dataset.walkPostprocessing = 'direct-fallback';
+          renderer.render(scene, camera);
+        }
+      } else renderer.render(scene, camera);
       root.dataset.walkDrawCalls = String(renderer.info.render.calls);
       root.dataset.walkTriangles = String(renderer.info.render.triangles);
     }
@@ -2160,6 +2187,7 @@ export function initializeWalkableWorld(
       atmosphere.dispose();
       scene.environment = null;
       outdoorEnvironment.dispose();
+      postprocessing?.dispose();
       if (document.pointerLockElement === dom.canvas) document.exitPointerLock();
 
       const geometries = new Set<THREE.BufferGeometry>();

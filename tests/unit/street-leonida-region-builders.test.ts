@@ -716,14 +716,14 @@ describe('Street Leonida lazy region builders', () => {
     expect(arrival.getObjectByName('vice-city-arrival-art-deco-facades')).toBeInstanceOf(
       THREE.InstancedMesh,
     );
-    expect(arrival.getObjectByName('vice-city-arrival-window-rhythm')).toBeInstanceOf(
+    expect(arrival.getObjectByName('vice-city-arrival-facade-shells-interiors')).toBeInstanceOf(
       THREE.InstancedMesh,
     );
     expect(arrival.getObjectByName('vice-city-arrival-photo-facades')).toBeUndefined();
     expect(
       (arrival.getObjectByName('vice-city-arrival-art-deco-facades') as THREE.InstancedMesh).count,
-    ).toBeGreaterThanOrEqual(16);
-    expect(arrival.getObjectByName('vice-city-arrival-balcony-bands')).toBeInstanceOf(
+    ).toBe(10);
+    expect(arrival.getObjectByName('vice-city-arrival-facade-shells-awnings-balconies')).toBeInstanceOf(
       THREE.InstancedMesh,
     );
     expect(arrival.getObjectByName('vice-city-arrival-rooftop-volumes')).toBeInstanceOf(

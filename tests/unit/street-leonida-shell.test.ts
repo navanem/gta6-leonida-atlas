@@ -37,7 +37,8 @@ describe('Leonida optional React explorer shell', () => {
     expect(markup).toContain('UNKNOWN');
     expect(markup).toContain('data-walk-map-layer-toggle="supported"');
     expect(markup).toContain('data-walk-map-layer-toggle="uncertain"');
-    expect(markup.match(/data-walk-region=/g)).toHaveLength(6);
+    const mapDialog = markup.split('data-walk-map=""')[1]?.split('</dialog>')[0] ?? '';
+    expect(mapDialog.match(/data-walk-region=/g)).toHaveLength(6);
     expect(markup).toContain('data-walk-region="mount-kalaga-national-park"');
     expect(markup).toContain('data-walk-scene-dialog=""');
     expect(markup).toContain('data-walk-scene-image=""');

@@ -5,6 +5,12 @@ import type { AxisAlignedRectangle } from './walk-engine';
 import type { WalkPoint } from './walk-engine';
 import { VICE_CITY_POI_WORLD, VICE_CITY_WORLD } from './walk-geography';
 import { WALK_ROCKSTAR_REFERENCE_PROFILES } from './walk-rockstar-reference';
+import { createArchitecturalDetailKit } from './walk-architectural-kit';
+import {
+  createPedestrianLibrary,
+  type PedestrianActor,
+  type PedestrianLibrary,
+} from './walk-pedestrians';
 import {
   createMotorcycle,
   createRoadVehicleBatch,
@@ -68,6 +74,7 @@ interface ViceCityMaterials {
 export interface ViceCityDistrict {
   featureIds: string[];
   update: (elapsed: number) => void;
+  dispose(): void;
 }
 
 export interface ViceCityDistrictOptions {
@@ -104,7 +111,9 @@ const ANCHORS = {
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const ASPHALT_ASSET = publicPath('assets/street-leonida/textures/sunworn-asphalt.jpg');
 const LUXURY_FACADE_ASSET = publicPath('assets/street-leonida/facades/luxury-tower-sunset.jpg');
-const REGION_FACADE_ATLAS_ASSET = publicPath('assets/street-leonida/facades/reference-led-facade-atlas.png');
+const REGION_FACADE_ATLAS_ASSET = publicPath(
+  'assets/street-leonida/facades/reference-led-facade-atlas.png',
+);
 
 function makeSurfaceTexture(
   seed: number,
@@ -489,103 +498,114 @@ function addRoundedWaterfrontTowers(
 ): void {
   const feature = createFeature(root, FEATURE_IDS[0], ANCHORS.downtown);
   feature.userData.location = 'Downtown';
+  // These anonymous towers flank the source-anchored Megamundo footprint. Their
+  // former shared centre put both glass shells through the named landmark.
   const towerX = -2.5;
-  addBox(feature, geometry, materials.whiteConcrete, [8.7, 1.4, 19], [towerX, 0.7, 0.5]);
-  addSolidCollision(collisions, feature, towerX, 0.5, 8.7, 19);
-
   const towerSpecs = [
-    { z: -5.5, height: 42 },
-    { z: 6.2, height: 48 },
+    { z: -36, floors: 16, width: 15.5, depth: 18.8 },
+    { z: 38, floors: 20, width: 17.5, depth: 22 },
   ] as const;
-  const balconyTransforms: InstanceTransform[] = [];
-  const mullionTransforms: InstanceTransform[] = [];
-  const windowBayTransforms: InstanceTransform[] = [];
-  const weatheringTransforms: InstanceTransform[] = [];
-  const rooftopTransforms: InstanceTransform[] = [];
-  const balconyCount = coarsePointer ? 10 : 18;
-
-  towerSpecs.forEach(({ z, height }, towerIndex) => {
+  const balconies: InstanceTransform[] = [];
+  const mullions: InstanceTransform[] = [];
+  const windows: InstanceTransform[] = [];
+  const weathering: InstanceTransform[] = [];
+  const rooftop: InstanceTransform[] = [];
+  towerSpecs.forEach(({ z, floors, width, depth }, towerIndex) => {
+    const height = floors * 3.2;
+    addMesh(
+      feature,
+      geometry.cylinder,
+      materials.whiteConcrete,
+      [width + 2.2, 2, depth + 2.2],
+      [towerX, 1, z],
+    );
+    addSolidCollision(collisions, feature, towerX, z, width + 2.2, depth + 2.2);
     addMesh(
       feature,
       geometry.cylinder,
       materials.glass,
-      [6.6, height, 8.1],
-      [towerX, height / 2 + 1.4, z],
+      [width, height, depth],
+      [towerX, height / 2 + 2, z],
       `vice-city-rounded-tower-${towerIndex + 1}`,
     );
     addMesh(
       feature,
       geometry.cylinder,
       materials.whiteConcrete,
-      [7.5, 0.75, 9],
-      [towerX, height + 1.75, z],
+      [width + 1.5, 0.6, depth + 1.5],
+      [towerX, height + 2.3, z],
     );
-
-    for (let level = 0; level < balconyCount; level += 1) {
-      const y = 3.1 + (level * (height - 4.6)) / Math.max(1, balconyCount - 1);
-      balconyTransforms.push({
+    // A recessed penthouse and different crown proportions give each mass a
+    // distinct silhouette without changing the anonymous district anchor.
+    addMesh(
+      feature,
+      towerIndex ? geometry.box : geometry.cylinder,
+      materials.glass,
+      [width * 0.56, towerIndex ? 5.8 : 3.8, depth * 0.54],
+      [towerX, height + (towerIndex ? 5.5 : 4.5), z],
+    );
+    addMesh(
+      feature,
+      towerIndex ? geometry.box : geometry.cylinder,
+      materials.whiteConcrete,
+      [width * 0.62, 0.45, depth * 0.6],
+      [towerX, height + (towerIndex ? 8.6 : 6.6), z],
+    );
+    for (let level = 0; level < floors; level++) {
+      const y = 2.15 + level * 3.2;
+      balconies.push({
         position: [towerX, y, z],
-        scale: [7.45, 0.2, 8.95],
+        scale: [width + 1.3, 0.24, depth + 1.3],
       });
-    }
-
-    const mullionCount = coarsePointer ? 4 : 7;
-    for (let column = 0; column < mullionCount; column += 1) {
-      mullionTransforms.push({
-        position: [towerX - 3.38, height / 2 + 1.35, z - 2.7 + column * (5.4 / (mullionCount - 1))],
-        scale: [0.12, height - 3.1, 0.12],
-      });
-    }
-
-    const windowLevels = coarsePointer ? 7 : 15;
-    const windowColumns = coarsePointer ? [-1.9, 1.9] : [-2.45, -0.82, 0.82, 2.45];
-    for (let level = 0; level < windowLevels; level += 1) {
-      const y = 3.3 + (level * (height - 6)) / Math.max(1, windowLevels - 1);
-      for (const zOffset of windowColumns) {
-        const lit = (level + Math.round(zOffset * 10) + towerIndex) % 4 === 0;
-        windowBayTransforms.push({
-          position: [towerX - 3.43, y, z + zOffset],
-          scale: [0.075, 1.02, coarsePointer ? 1.25 : 1.05],
-          color: lit ? 0xf2b66f : 0x315565,
+      const columns = coarsePointer ? 6 : 12;
+      for (let column = 0; column < columns; column++) {
+        const angle = (column * Math.PI * 2) / columns;
+        windows.push({
+          position: [
+            towerX + Math.cos(angle) * (width / 2 + 0.06),
+            y + 1.5,
+            z + Math.sin(angle) * (depth / 2 + 0.06),
+          ],
+          scale: [coarsePointer ? 1.35 : 1.65, 2.05, 0.08],
+          rotation: [0, Math.PI / 2 - angle, 0],
+          color: (level + column * 3 + towerIndex) % 7 === 0 ? 0xd2b389 : 0x608491,
         });
       }
     }
-
-    const streakCount = coarsePointer ? 2 : 6;
-    for (let streak = 0; streak < streakCount; streak += 1) {
-      weatheringTransforms.push({
+    for (let column = 0; column < (coarsePointer ? 6 : 12); column++) {
+      const angle = (column * Math.PI * 2) / (coarsePointer ? 6 : 12);
+      mullions.push({
         position: [
-          towerX - 3.48,
-          2.2 + ((streak * 6.1) % Math.max(3, height - 5)),
-          z - 2.8 + streak,
+          towerX + Math.cos(angle) * (width / 2 + 0.11),
+          height / 2 + 2,
+          z + Math.sin(angle) * (depth / 2 + 0.11),
         ],
-        scale: [0.035, 1.6 + (streak % 3) * 0.8, 0.2],
+        scale: [0.1, height, 0.1],
       });
     }
-    rooftopTransforms.push(
-      {
-        position: [towerX - 1.35, height + 2.35, z - 1.4],
-        scale: [1.55, 0.72, 1.15],
-      },
-      {
-        position: [towerX + 1.35, height + 2.28, z + 1.25],
-        scale: [1.1, 0.58, 0.92],
-      },
+    for (let streak = 0; streak < (coarsePointer ? 2 : 5); streak++) {
+      weathering.push({
+        position: [towerX - width / 2 - 0.12, 3.2 + streak * 6.4, z + ((streak % 3) - 1) * 2],
+        scale: [0.04, 1.1, 0.12],
+      });
+    }
+    rooftop.push(
+      { position: [towerX - 3, height + 3.05, z - 3], scale: [1.9, 1.2, 1.4] },
+      { position: [towerX + 3, height + 2.85, z + 3], scale: [1.4, 0.8, 1.2] },
     );
   });
-
   addInstances(
     feature,
     geometry.cylinder,
     materials.whiteConcrete,
-    balconyTransforms,
+    balconies,
     'vice-city-rounded-tower-balconies',
   );
   addInstances(
     feature,
     geometry.box,
     materials.chrome,
-    mullionTransforms,
+    mullions,
     'vice-city-rounded-tower-mullions',
     false,
   );
@@ -593,7 +613,7 @@ function addRoundedWaterfrontTowers(
     feature,
     geometry.box,
     materials.warmGlass,
-    windowBayTransforms,
+    windows,
     'vice-city-varied-window-bays',
     false,
   );
@@ -601,17 +621,11 @@ function addRoundedWaterfrontTowers(
     feature,
     geometry.box,
     materials.weathering,
-    weatheringTransforms,
+    weathering,
     'vice-city-facade-weathering',
     false,
   );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.charcoalSteel,
-    coarsePointer ? rooftopTransforms.filter((_, index) => index % 2 === 0) : rooftopTransforms,
-    'vice-city-rooftop-hvac',
-  );
+  addInstances(feature, geometry.box, materials.charcoalSteel, rooftop, 'vice-city-rooftop-hvac');
 }
 
 function addMegamundoTower(
@@ -642,7 +656,10 @@ function addMegamundoTower(
   const ribCount = coarsePointer ? 7 : 13;
   for (let index = 0; index < ribCount; index += 1) {
     const x = centerX - 9.25 + (index * 18.5) / Math.max(1, ribCount - 1);
-    ribs.push({ position: [x, height / 2, 9.2], scale: [0.12, height - 3.4, 0.12] });
+    ribs.push({
+      position: [x, height / 2, 9.2],
+      scale: [0.12, height - 3.4, 0.12],
+    });
   }
   addInstances(feature, geometry.box, materials.chrome, ribs, 'megamundo-facade-ribs', false);
   const floorCount = coarsePointer ? 12 : 18;
@@ -672,6 +689,10 @@ function addArtDecoStrip(
 ): void {
   const feature = createFeature(root, FEATURE_IDS[2], ANCHORS.viceBeach);
   feature.userData.location = 'Vice Beach';
+  // Anonymous frontage shares the L32 regional focus, not the hotel's footprint.
+  // Put it across the existing open forecourt; its source anchor stays untouched.
+  const centerX = 15;
+  const frontX = 10.44;
   const facadeMaterials = [
     materials.aquaStucco,
     materials.coralStucco,
@@ -679,90 +700,56 @@ function addArtDecoStrip(
     materials.pinkStucco,
     materials.aquaStucco,
   ];
-  const facadeCount = coarsePointer ? 3 : 5;
-  const windowTransforms: InstanceTransform[] = [];
-  const frameTransforms: InstanceTransform[] = [];
-  const entranceCanopies: InstanceTransform[] = [];
-  const roofVents: InstanceTransform[] = [];
-
-  for (let index = 0; index < facadeCount; index += 1) {
-    const z = (index - (facadeCount - 1) / 2) * 4.3;
-    const height = 7.2 + (index % 3) * 1.3;
-    const surface = facadeMaterials[index] ?? materials.creamStucco;
-    addBox(feature, geometry, surface, [6.2, height, 3.75], [-4.2, height / 2, z]);
-    addBox(feature, geometry, materials.whiteConcrete, [6.5, 0.28, 4], [-4.2, height, z]);
+  const windows: InstanceTransform[] = [];
+  const frames: InstanceTransform[] = [];
+  const cornices: InstanceTransform[] = [];
+  const rooftop: InstanceTransform[] = [];
+  const kit = createArchitecturalDetailKit({ palette: 'coastal', coarsePointer });
+  for (let index = 0; index < 5; index++) {
+    const z = (index - 2) * 9.5;
+    const floors = 3 + (index % 2);
+    const height = floors * 3.2 + 0.6;
+    addBox(feature, geometry, facadeMaterials[index]!, [9, height, 8], [centerX, height / 2, z]);
+    addBox(feature, geometry, materials.whiteConcrete, [9.4, 0.28, 8.4], [centerX, height, z]);
     addBox(
       feature,
       geometry,
       index % 2 === 0 ? materials.magentaLight : materials.cyanLight,
-      [0.18, height - 1.4, 3.86],
-      [-1.03, height / 2, z],
+      [0.09, height - 2.2, 0.12],
+      [frontX - 0.04, height / 2 + 0.5, z - 3.7],
     );
-    addSolidCollision(collisions, feature, -4.2, z, 6.2, 3.75);
-
-    const floorCount = coarsePointer ? 2 : 3;
-    for (let floor = 0; floor < floorCount; floor += 1) {
-      windowTransforms.push({
-        position: [-1.04, 2 + floor * 1.75, z - 1.05],
-        scale: [0.12, 0.86, 0.92],
-      });
-      windowTransforms.push({
-        position: [-1.04, 2 + floor * 1.75, z + 1.05],
-        scale: [0.12, 0.86, 0.92],
-      });
-      for (const zOffset of [-1.05, 1.05]) {
-        frameTransforms.push(
-          {
-            position: [-1.13, 2 + floor * 1.75, z + zOffset - 0.52],
-            scale: [0.08, 1.02, 0.07],
-          },
-          {
-            position: [-1.13, 2 + floor * 1.75, z + zOffset + 0.52],
-            scale: [0.08, 1.02, 0.07],
-          },
-          {
-            position: [-1.13, 2.48 + floor * 1.75, z + zOffset],
-            scale: [0.08, 0.07, 1.1],
-          },
-          {
-            position: [-1.13, 1.52 + floor * 1.75, z + zOffset],
-            scale: [0.08, 0.07, 1.1],
-          },
+    addSolidCollision(collisions, feature, centerX, z, 9, 8);
+    for (let floor = 1; floor < floors; floor++) {
+      const y = 3.2 * floor + 1.55;
+      cornices.push({ position: [frontX, floor * 3.2, z], scale: [0.32, 0.2, 8.15] });
+      for (const dz of [-2.1, 2.1]) {
+        windows.push({ position: [frontX, y, z + dz], scale: [0.13, 1.85, 2.35] });
+        frames.push(
+          { position: [frontX - 0.06, y - 0.98, z + dz], scale: [0.3, 0.16, 2.65] },
+          { position: [frontX - 0.06, y + 0.98, z + dz], scale: [0.22, 0.12, 2.65] },
         );
+        if (!coarsePointer)
+          for (const side of [-1, 1])
+            frames.push({
+              position: [frontX - 0.05, y, z + dz + side * 1.22],
+              scale: [0.2, 1.98, 0.1],
+            });
       }
     }
-    entranceCanopies.push({
-      position: [-1.23, 1.25, z],
-      scale: [0.45, 0.12, 2.3],
-      rotation: [0, 0, -0.12],
+    rooftop.push({ position: [centerX, height + 0.55, z], scale: [1.7, 0.9, 1.3] });
+    kit.addStorefront({
+      position: [frontX - 0.06, 0.18, z],
+      rotationY: -Math.PI / 2,
+      width: 7.2,
+      height: 3,
+      canopyDepth: 1.35,
     });
-    roofVents.push({ position: [-4.2, height + 0.55, z], scale: [1.1, 0.82, 0.9] });
   }
-  addInstances(feature, geometry.box, materials.warmGlass, windowTransforms, 'art-deco-windows');
-  if (!coarsePointer) {
-    addInstances(
-      feature,
-      geometry.box,
-      materials.chrome,
-      frameTransforms,
-      'art-deco-window-frames',
-      false,
-    );
-  }
-  addInstances(
-    feature,
-    geometry.box,
-    materials.whiteConcrete,
-    entranceCanopies,
-    'art-deco-entry-canopies',
-  );
-  addInstances(
-    feature,
-    geometry.box,
-    materials.charcoalSteel,
-    coarsePointer ? roofVents.slice(0, 2) : roofVents,
-    'art-deco-rooftop-vents',
-  );
+  addInstances(feature, geometry.box, materials.glass, windows, 'art-deco-windows', false);
+  addInstances(feature, geometry.box, materials.whiteConcrete, frames, 'art-deco-window-frames');
+  addInstances(feature, geometry.box, materials.whiteConcrete, cornices, 'art-deco-floor-cornices');
+  addInstances(feature, geometry.box, materials.charcoalSteel, rooftop, 'art-deco-rooftop-vents');
+  feature.add(kit.finish().group);
 }
 
 function addBeachPromenade(
@@ -799,47 +786,155 @@ function addHotelWaterfront(
 ): void {
   const feature = createFeature(root, FEATURE_IDS[4], ANCHORS.hotelDixon);
   feature.userData.location = 'Hotel Dixon';
-  addBox(feature, geometry, materials.creamStucco, [9.5, 12, 8.5], [-8, 6, 0]);
-  addBox(feature, geometry, materials.coralStucco, [7.2, 4.3, 10.2], [-7.2, 2.15, 1.1]);
-  addBox(feature, geometry, materials.whiteConcrete, [11.2, 0.38, 10.4], [-7.4, 12.1, 0.4]);
+  feature.userData.communityId = 'L32';
+  feature.userData.visualInterpretation = 'APPROXIMATE';
+  // The GTADB point stays in the forecourt. New massing extends onto the same
+  // authored western side instead of swallowing the selected map destination.
+  const centerX = -19;
+  const podiumHeight = 3.6;
+  const floorHeight = 3.2;
+  const floorCount = 8;
   addBox(
     feature,
     geometry,
-    materials.water,
-    [5.8, 0.16, 4],
-    [1, 0.14, 1.2],
-    'hotel-waterfront-pool',
+    materials.whiteConcrete,
+    [30, podiumHeight, 32],
+    [centerX, podiumHeight / 2, 0],
+    'hotel-white-podium',
   );
-  addBox(feature, geometry, materials.pavement, [7.4, 0.2, 5.8], [1, 0.08, 1.2]);
-
-  const balconyCount = coarsePointer ? 4 : 8;
-  const balconies: InstanceTransform[] = [];
-  const windows: InstanceTransform[] = [];
-  const balustrades: InstanceTransform[] = [];
-  for (let level = 0; level < balconyCount; level += 1) {
-    const y = 2.1 + (level * 8.2) / Math.max(1, balconyCount - 1);
-    balconies.push({ position: [-3.15, y, 0], scale: [0.55, 0.16, 7.8] });
-    windows.push({ position: [-3.2, y + 0.55, 0], scale: [0.12, 0.78, 6.9] });
-    balustrades.push({ position: [-2.82, y + 0.66, 0], scale: [0.09, 0.12, 7.65] });
-    const uprightCount = coarsePointer ? 3 : 7;
-    for (let upright = 0; upright < uprightCount; upright += 1) {
-      balustrades.push({
-        position: [-2.82, y + 0.38, -3.4 + (upright * 6.8) / Math.max(1, uprightCount - 1)],
-        scale: [0.08, 0.62, 0.08],
+  addSolidCollision(collisions, feature, centerX, 0, 30, 32);
+  const slabs: InstanceTransform[] = [];
+  const cores: InstanceTransform[] = [];
+  const glazing: InstanceTransform[] = [];
+  const rails: InstanceTransform[] = [];
+  const dividers: InstanceTransform[] = [];
+  for (let level = 0; level < floorCount; level++) {
+    const tier = Math.floor(level / 2);
+    const width = 30 - tier * 3.4;
+    const depth = 32 - tier * 3.4;
+    const y = podiumHeight + level * floorHeight;
+    slabs.push({ position: [centerX, y, 0], scale: [width, 0.28, depth] });
+    cores.push({
+      position: [centerX, y + floorHeight / 2, 0],
+      scale: [width - 2.2, floorHeight - 0.28, depth - 2.2],
+    });
+    for (const side of [-1, 1]) {
+      glazing.push({
+        position: [centerX, y + 1.58, side * (depth / 2 - 1.06)],
+        scale: [width - 2.9, 2.26, 0.12],
       });
+      glazing.push({
+        position: [centerX + side * (width / 2 - 1.06), y + 1.58, 0],
+        scale: [0.12, 2.26, depth - 2.9],
+      });
+      rails.push({
+        position: [centerX, y + 1.13, side * (depth / 2 - 0.08)],
+        scale: [width, 0.1, 0.12],
+      });
+      rails.push({
+        position: [centerX + side * (width / 2 - 0.08), y + 1.13, 0],
+        scale: [0.12, 0.1, depth],
+      });
+      const count = coarsePointer ? 5 : 9;
+      for (let column = 0; column < count; column++) {
+        const x = centerX - width / 2 + 0.25 + (column * (width - 0.5)) / (count - 1);
+        const z = -depth / 2 + 0.25 + (column * (depth - 0.5)) / (count - 1);
+        rails.push({
+          position: [x, y + 0.66, side * (depth / 2 - 0.08)],
+          scale: [0.065, 0.94, 0.065],
+        });
+        rails.push({
+          position: [centerX + side * (width / 2 - 0.08), y + 0.66, z],
+          scale: [0.065, 0.94, 0.065],
+        });
+      }
+      for (let bay = 1; bay < 6; bay++) {
+        dividers.push({
+          position: [
+            centerX - (width - 2.9) / 2 + (bay * (width - 2.9)) / 6,
+            y + 1.58,
+            side * (depth / 2 - 1.04),
+          ],
+          scale: [0.12, 2.34, 0.16],
+        });
+      }
     }
   }
-  addInstances(feature, geometry.box, materials.whiteConcrete, balconies, 'hotel-balconies');
-  addInstances(feature, geometry.box, materials.glass, windows, 'hotel-windows', false);
+  addInstances(feature, geometry.box, materials.whiteConcrete, slabs, 'hotel-balconies');
+  addInstances(feature, geometry.box, materials.whiteConcrete, cores, 'hotel-stepped-masses');
+  addInstances(feature, geometry.box, materials.glass, glazing, 'hotel-windows', false);
   addInstances(
     feature,
     geometry.box,
     materials.chrome,
-    balustrades,
+    rails,
     'vice-city-hotel-balustrades',
     false,
   );
-  addSolidCollision(collisions, feature, -8.18, 0.98, 9.15, 10.45);
+  addInstances(
+    feature,
+    geometry.box,
+    materials.whiteConcrete,
+    dividers,
+    'hotel-recessed-window-frames',
+  );
+  const roofY = podiumHeight + floorCount * floorHeight;
+  addBox(
+    feature,
+    geometry,
+    materials.whiteConcrete,
+    [20.4, 0.42, 22.4],
+    [centerX, roofY, 0],
+    'hotel-roof-terrace',
+  );
+  addBox(
+    feature,
+    geometry,
+    materials.pavement,
+    [31, 0.22, 12],
+    [centerX, 0.11, 23],
+    'hotel-pool-terrace',
+  );
+  addBox(feature, geometry, materials.whiteConcrete, [15.4, 0.16, 7.4], [centerX, 0.29, 24]);
+  addBox(
+    feature,
+    geometry,
+    materials.water,
+    [14.6, 0.08, 6.6],
+    [centerX, 0.41, 24],
+    'hotel-waterfront-pool',
+  );
+  const planters: InstanceTransform[] = [];
+  for (const x of [-32, -6])
+    for (const z of [19, 28]) planters.push({ position: [x, 0.65, z], scale: [1.7, 1.1, 1.7] });
+  addInstances(feature, geometry.box, materials.whiteConcrete, planters, 'hotel-terrace-planters');
+  addInstances(
+    feature,
+    geometry.sphere,
+    materials.palmLeaf,
+    planters.map((p) => ({
+      position: [p.position[0], 1.25, p.position[2]] as Vec3,
+      scale: [1.8, 0.9, 1.8] as Vec3,
+    })),
+    'hotel-terrace-planting',
+  );
+  const kit = createArchitecturalDetailKit({
+    palette: 'coastal',
+    coarsePointer,
+  });
+  kit.addRoofEquipment({
+    position: [centerX, roofY + 0.21, 0],
+    width: 17,
+    depth: 18,
+  });
+  kit.addStorefront({
+    position: [centerX, 0.2, 16.04],
+    width: 12,
+    height: 3.2,
+    canopyDepth: 2.3,
+  });
+  const details = kit.finish();
+  feature.add(details.group);
 }
 
 function addSportsCourt(
@@ -880,40 +975,78 @@ function addMuralUnderpass(
 ): void {
   const feature = createFeature(root, FEATURE_IDS[6], ANCHORS.muralUnderpass);
   feature.userData.location = 'La Perle';
-  addBox(feature, geometry, materials.asphalt, [14, 0.16, 6], [0, 0.08, 0]);
-  addBox(feature, geometry, materials.darkConcrete, [13.5, 1.05, 7.4], [0, 6.2, 0]);
-  addBox(feature, geometry, materials.paleConcrete, [14, 0.28, 7.8], [0, 6.86, 0]);
-
+  addBox(feature, geometry, materials.asphalt, [14, 0.16, 24], [0, 0.08, 0]);
+  addBox(feature, geometry, materials.darkConcrete, [13.5, 0.8, 24], [0, 6.3, 0]);
+  addBox(feature, geometry, materials.paleConcrete, [14, 0.28, 24], [0, 6.86, 0]);
+  const girders: InstanceTransform[] = [];
+  const parapets: InstanceTransform[] = [];
+  for (const x of [-5.5, -2.75, 0, 2.75, 5.5])
+    girders.push({ position: [x, 5.72, 0], scale: [0.28, 0.45, 24] });
+  for (const x of [-6.8, 6.8]) parapets.push({ position: [x, 7.38, 0], scale: [0.3, 0.76, 24] });
+  addInstances(
+    feature,
+    geometry.box,
+    materials.paleConcrete,
+    girders,
+    'mural-viaduct-soffit-girders',
+  );
+  addInstances(feature, geometry.box, materials.whiteConcrete, parapets, 'mural-viaduct-parapets');
   const piles = [
-    [-5, -2.55],
-    [-5, 2.55],
-    [5, -2.55],
-    [5, 2.55],
+    [-5, -8],
+    [-5, 8],
+    [5, -8],
+    [5, 8],
   ] as const;
   const muralSurfaces = [
-    materials.magentaLight,
-    materials.cyanLight,
-    materials.amberLight,
+    materials.aquaStucco,
     materials.coralStucco,
+    materials.pinkStucco,
+    materials.creamStucco,
   ];
+  const artwork: InstanceTransform[] = [];
   piles.forEach(([x, z], index) => {
     addBox(
       feature,
       geometry,
       materials.paleConcrete,
-      [0.9, 5.7, 0.9],
-      [x, 2.85, z],
+      [1.15, 5.85, 1.15],
+      [x, 2.925, z],
       `vice-city-mural-underpass-pile-${index + 1}`,
     );
-    addBox(
-      feature,
-      geometry,
-      muralSurfaces[index] ?? materials.coralStucco,
-      [0.94, 3, 0.08],
-      [x, 2.85, z > 0 ? z - 0.49 : z + 0.49],
-    );
+    addBox(feature, geometry, materials.paleConcrete, [3.2, 0.7, 1.5], [x, 5.6, z]);
+    for (const side of [-1, 1]) {
+      addBox(
+        feature,
+        geometry,
+        muralSurfaces[index]!,
+        [1.19, 3.7, 0.045],
+        [x, 2.6, z + side * 0.596],
+      );
+      for (let stripe = 0; stripe < 5; stripe++)
+        artwork.push({
+          position: [x - 0.36 + stripe * 0.18, 1.3 + stripe * 0.56, z + side * 0.623],
+          scale: [0.18, 1.25, 0.025],
+          rotation: [0, 0, -0.52],
+          color: [0x5c9697, 0xd0ae63, 0xc27779][(stripe + index) % 3],
+        });
+    }
     addPileCollision(collisions, feature, x, z);
   });
+  addInstances(
+    feature,
+    geometry.box,
+    materials.whiteConcrete,
+    artwork,
+    'mural-viaduct-painted-geometric-art',
+    false,
+  );
+  const drain: InstanceTransform[] = [-6.15, 6.15].flatMap((x) =>
+    [-9, 9].map((z) => ({
+      position: [x, 0.19, z] as Vec3,
+      scale: [0.48, 0.055, 0.7] as Vec3,
+    })),
+  );
+  addInstances(feature, geometry.box, materials.charcoalSteel, drain, 'mural-viaduct-curb-drains');
 }
 
 function addArena(
@@ -924,78 +1057,151 @@ function addArena(
   coarsePointer: boolean,
 ): void {
   const feature = createFeature(root, FEATURE_IDS[7], ANCHORS.saharaArena);
-  feature.userData.location = 'Sahara Arena';
-  feature.userData.communityId = 'L187';
-  feature.userData.evidence = 'SUPPORTED';
-  feature.userData.landmarkClaim = 'GTADB_NAME';
-  feature.userData.nameEvidence = 'KNOWN';
-  feature.userData.visualInterpretation = 'APPROXIMATE';
-  addMesh(feature, geometry.cylinder, materials.warmConcrete, [13.4, 0.45, 8.5], [0, 0.22, 0]);
-  addMesh(feature, geometry.cylinder, materials.paleConcrete, [12, 5.2, 7.5], [0, 2.6, 0]);
-  addMesh(feature, geometry.cylinder, materials.darkConcrete, [10.4, 0.72, 6.2], [0, 5.25, 0]);
-  addMesh(feature, geometry.cylinder, materials.warmGlass, [10.8, 1.05, 6.55], [0, 4.05, 0]);
-
+  Object.assign(feature.userData, {
+    location: 'Sahara Arena',
+    communityId: 'L187',
+    evidence: 'SUPPORTED',
+    landmarkClaim: 'GTADB_NAME',
+    nameEvidence: 'KNOWN',
+    visualInterpretation: 'APPROXIMATE',
+  });
+  const segments = 18;
+  const shellPositions: number[] = [];
+  const roofPositions: number[] = [];
+  const colors: number[] = [];
+  const seams: BeamTransform[] = [];
+  const topRing: Vec3[] = [];
+  const bottomRing: Vec3[] = [];
+  for (let index = 0; index < segments; index++) {
+    const angle = (index / segments) * Math.PI * 2;
+    bottomRing.push([Math.cos(angle) * 24.5, 3.8, Math.sin(angle) * 13.2]);
+    topRing.push([
+      Math.cos(angle) * (index % 2 ? 27 : 26),
+      17.2 + (index % 3) * 0.55,
+      Math.sin(angle) * (index % 2 ? 15.5 : 14.9),
+    ]);
+  }
+  for (let index = 0; index < segments; index++) {
+    const next = (index + 1) % segments;
+    const a = bottomRing[index]!,
+      b = bottomRing[next]!,
+      c = topRing[next]!,
+      d = topRing[index]!;
+    const tint = new THREE.Color(
+      index % 3 === 0 ? 0xbcc7cb : index % 3 === 1 ? 0xe2ded4 : 0xd0d6d3,
+    );
+    // Reverse the perimeter order on the outside so front-side normals face out.
+    for (const vertex of [a, c, b, a, d, c]) {
+      shellPositions.push(...vertex);
+      colors.push(tint.r, tint.g, tint.b);
+    }
+    roofPositions.push(0, 18.4, 0, ...c, ...d);
+    seams.push({ start: a, end: d, diameter: 0.11 }, { start: d, end: c, diameter: 0.12 });
+    if (index % 2 === 0) seams.push({ start: a, end: c, diameter: 0.085 });
+  }
+  const shellGeometry = new THREE.BufferGeometry();
+  shellGeometry.setAttribute('position', new THREE.Float32BufferAttribute(shellPositions, 3));
+  shellGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  shellGeometry.computeVertexNormals();
+  const shellMaterial = materials.whiteConcrete.clone();
+  shellMaterial.color.set(0xffffff);
+  shellMaterial.vertexColors = true;
+  addMesh(
+    feature,
+    shellGeometry,
+    shellMaterial,
+    [1, 1, 1],
+    [0, 0, 0],
+    'sahara-arena-faceted-shell',
+  );
+  const roofGeometry = new THREE.BufferGeometry();
+  roofGeometry.setAttribute('position', new THREE.Float32BufferAttribute(roofPositions, 3));
+  roofGeometry.computeVertexNormals();
+  addMesh(
+    feature,
+    roofGeometry,
+    materials.darkConcrete,
+    [1, 1, 1],
+    [0, 0, 0],
+    'sahara-arena-folded-roof',
+  );
+  const baseGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, segments);
+  addMesh(
+    feature,
+    baseGeometry,
+    materials.pavement,
+    [56, 0.28, 33],
+    [0, 0.14, 0],
+    'sahara-arena-plaza',
+  );
+  addMesh(
+    feature,
+    baseGeometry,
+    materials.darkConcrete,
+    [49, 3.8, 26.4],
+    [0, 1.9, 0],
+    'sahara-arena-base',
+  );
+  addMesh(
+    feature,
+    baseGeometry,
+    materials.glass,
+    [49.2, 2.8, 26.6],
+    [0, 2, 0],
+    'sahara-arena-ground-glazing',
+  );
+  addBeamInstances(
+    feature,
+    geometry.box,
+    materials.cyanLight,
+    seams,
+    'sahara-arena-panel-light-seams',
+  );
   addBox(
     feature,
     geometry,
     materials.darkConcrete,
-    [6.2, 2.85, 0.32],
-    [0, 1.58, 3.83],
+    [12.6, 3.1, 0.4],
+    [0, 1.7, 13.3],
     'sahara-arena-entry-portal',
   );
   addBox(
     feature,
     geometry,
-    materials.warmConcrete,
-    [8.1, 0.34, 1.55],
-    [0, 2.93, 4.38],
+    materials.whiteConcrete,
+    [15, 0.45, 5],
+    [0, 3.55, 15.3],
     'sahara-arena-entry-canopy',
   );
-
-  const entryGates: InstanceTransform[] = [];
-  const gateCount = coarsePointer ? 4 : 7;
-  for (let index = 0; index < gateCount; index += 1) {
-    entryGates.push({
-      position: [-2.45 + (index * 4.9) / Math.max(1, gateCount - 1), 1.48, 4.02],
-      scale: [0.12, 2.45, 0.12],
+  const gates: InstanceTransform[] = [];
+  const fins: InstanceTransform[] = [];
+  for (let index = 0; index < (coarsePointer ? 5 : 9); index++)
+    gates.push({
+      position: [-5.4 + (index * 10.8) / ((coarsePointer ? 5 : 9) - 1), 1.55, 13.57],
+      scale: [0.12, 2.7, 0.12],
     });
+  for (const x of [-6.6, 6.6]) {
+    fins.push({ position: [x, 1.75, 16.7], scale: [0.22, 3.5, 0.22] });
+    addSolidCollision(collisions, feature, x, 16.7, 0.3, 0.3, 0, 0.08);
   }
-  addInstances(
-    feature,
-    geometry.box,
-    materials.chrome,
-    entryGates,
-    'sahara-arena-entry-gates',
-    false,
-  );
-
+  addInstances(feature, geometry.box, materials.chrome, gates, 'sahara-arena-entry-gates', false);
+  addInstances(feature, geometry.box, materials.whiteConcrete, fins, 'arena-exterior-ribs');
   addMesh(
     feature,
     geometry.plane,
     createViceSignMaterial(
       'street-leonida/sign/sahara-arena-approximate',
       'SAHARA',
-      'ARENA  •  GTADB NAME  •  FORM APPROX.',
-      0x1a222b,
-      0xffb45f,
+      'ARENA',
+      0x18252c,
+      0x68c5c8,
     ),
-    [7.8, 2.45, 1],
-    [0, 4.08, 3.84],
+    [9, 2.5, 1],
+    [0, 6.1, 14.15],
     'sahara-arena-identity-sign',
   );
-
-  const ribs: InstanceTransform[] = [];
-  const ribCount = coarsePointer ? 12 : 22;
-  for (let index = 0; index < ribCount; index += 1) {
-    const angle = (index / ribCount) * Math.PI * 2;
-    ribs.push({
-      position: [Math.cos(angle) * 6.05, 2.7, Math.sin(angle) * 3.78],
-      scale: [0.18, 5.2, 0.18],
-      rotation: [0, -angle, 0],
-    });
-  }
-  addInstances(feature, geometry.box, materials.whiteConcrete, ribs, 'arena-exterior-ribs');
-  addSolidCollision(collisions, feature, 0, 0, 12, 7.5);
+  // Keep the documented +Z, 22m approach and central entrance apron navigable.
+  addSolidCollision(collisions, feature, 0, 0, 49, 26.4);
 }
 
 function addFerrisWheel(
@@ -1096,6 +1302,8 @@ function addCatalanBoulevard(
   materials: ViceCityMaterials,
   collisions: AxisAlignedRectangle[],
   coarsePointer: boolean,
+  pedestrianLibrary: PedestrianLibrary,
+  pedestrians: PedestrianActor[],
 ): void {
   const feature = createFeature(root, FEATURE_IDS[10], ANCHORS.megamundo);
   feature.userData.location = 'Catalan Boulevard, Downtown';
@@ -1166,10 +1374,34 @@ function addCatalanBoulevard(
   streetLife.userData.referenceCue = 'motorcycles, pedestrians and traffic beneath mural pillars';
   feature.add(streetLife);
   const bikeSpecs = [
-    { x: 91.5, z: 19, yaw: -0.08, body: materials.cyanLight, rider: materials.creamStucco },
-    { x: 96.4, z: 13, yaw: 0.11, body: materials.magentaLight, rider: materials.aquaStucco },
-    { x: 104.2, z: 17, yaw: -0.13, body: materials.amberLight, rider: materials.pinkStucco },
-    { x: 109.1, z: 10, yaw: 0.06, body: materials.cyanLight, rider: materials.coralStucco },
+    {
+      x: 91.5,
+      z: 19,
+      yaw: -0.08,
+      body: materials.cyanLight,
+      rider: materials.creamStucco,
+    },
+    {
+      x: 96.4,
+      z: 13,
+      yaw: 0.11,
+      body: materials.magentaLight,
+      rider: materials.aquaStucco,
+    },
+    {
+      x: 104.2,
+      z: 17,
+      yaw: -0.13,
+      body: materials.amberLight,
+      rider: materials.pinkStucco,
+    },
+    {
+      x: 109.1,
+      z: 10,
+      yaw: 0.06,
+      body: materials.cyanLight,
+      rider: materials.coralStucco,
+    },
   ].slice(0, coarsePointer ? 3 : 4);
   const motorcycleMaterial = createRoadVehicleMaterial(
     'street-leonida/catalan-boulevard/motorcycles',
@@ -1186,17 +1418,11 @@ function addCatalanBoulevard(
     bike.rotation.y = bikeSpec.yaw;
     streetLife.add(bike);
   }
-  const pedestrianMaterials = [
-    materials.coralStucco,
-    materials.aquaStucco,
-    materials.pinkStucco,
-    materials.creamStucco,
-    materials.cyanLight,
-    materials.amberLight,
-  ] as const;
   const pedestrianCount = coarsePointer ? 5 : 10;
   for (let index = 0; index < pedestrianCount; index += 1) {
-    const person = new THREE.Group();
+    const actor = pedestrianLibrary.create({ variant: index, pose: 'idle' });
+    pedestrians.push(actor);
+    const person = actor.root;
     person.name = `catalan-street-pedestrian-${index + 1}`;
     const side = index % 2 === 0 ? -1 : 1;
     person.position.set(
@@ -1204,28 +1430,19 @@ function addCatalanBoulevard(
       0.32,
       9 + ((index * 7) % 24),
     );
+    person.rotation.y = (side * Math.PI) / 2 + ((index % 3) - 1) * 0.22;
     streetLife.add(person);
-    addMesh(
-      person,
-      geometry.taperedCylinder,
-      pedestrianMaterials[index % pedestrianMaterials.length] ?? materials.creamStucco,
-      [0.52, 1.08, 0.52],
-      [0, 1.18, 0],
-    );
-    addMesh(person, geometry.sphere, materials.warmConcrete, [0.62, 0.62, 0.62], [0, 2.03, 0]);
-    addMesh(
-      person,
-      geometry.cylinder,
-      materials.charcoalSteel,
-      [0.16, 0.92, 0.16],
-      [-0.2, 0.46, 0],
-    );
-    addMesh(person, geometry.cylinder, materials.charcoalSteel, [0.16, 0.92, 0.16], [0.2, 0.46, 0]);
   }
   const guidewayRails: InstanceTransform[] = [];
   for (let x = 55; x <= 145; x += 4) {
-    guidewayRails.push({ position: [x, 10.7, -27.7], scale: [0.16, 1.3, 0.16] });
-    guidewayRails.push({ position: [x, 10.7, -12.3], scale: [0.16, 1.3, 0.16] });
+    guidewayRails.push({
+      position: [x, 10.7, -27.7],
+      scale: [0.16, 1.3, 0.16],
+    });
+    guidewayRails.push({
+      position: [x, 10.7, -12.3],
+      scale: [0.16, 1.3, 0.16],
+    });
   }
   addInstances(
     guideway,
@@ -1277,7 +1494,10 @@ function addCatalanBoulevard(
   for (const crossingZ of [-26.5, -13.5]) {
     for (let x = 85.8; x <= 114.2; x += 2.25) {
       if (Math.abs(x - roadX) < 1.7) continue;
-      crosswalks.push({ position: [x, 0.24, crossingZ], scale: [1.15, 0.035, 0.34] });
+      crosswalks.push({
+        position: [x, 0.24, crossingZ],
+        scale: [1.15, 0.035, 0.34],
+      });
     }
   }
   addInstances(
@@ -1707,6 +1927,9 @@ export function createViceCityDistrict(
 
   const geometry = createGeometry(coarsePointer);
   const materials = createMaterials();
+  const pedestrianLibrary = createPedestrianLibrary();
+  const pedestrians: PedestrianActor[] = [];
+  let disposed = false;
   addRoundedWaterfrontTowers(root, geometry, materials, collisions, coarsePointer);
   addMegamundoTower(root, geometry, materials, collisions, coarsePointer);
   addArtDecoStrip(root, geometry, materials, collisions, coarsePointer);
@@ -1718,7 +1941,15 @@ export function createViceCityDistrict(
   const ferrisWheelRotor = addFerrisWheel(root, geometry, materials, collisions, coarsePointer);
   addCuratedPalmLine(root, geometry, materials, coarsePointer);
   if (options.renderCatalanBoulevard !== false) {
-    addCatalanBoulevard(root, geometry, materials, collisions, coarsePointer);
+    addCatalanBoulevard(
+      root,
+      geometry,
+      materials,
+      collisions,
+      coarsePointer,
+      pedestrianLibrary,
+      pedestrians,
+    );
   }
 
   scene.add(root);
@@ -1726,8 +1957,15 @@ export function createViceCityDistrict(
   return {
     featureIds: [...FEATURE_IDS],
     update(elapsed: number): void {
+      if (disposed) return;
       const safeElapsed = Number.isFinite(elapsed) ? elapsed : 0;
       ferrisWheelRotor.rotation.z = safeElapsed * 0.085;
+      for (const actor of pedestrians) actor.update({ elapsedSeconds: safeElapsed });
+    },
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      pedestrianLibrary.dispose();
     },
   };
 }

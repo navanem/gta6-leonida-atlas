@@ -1,7 +1,12 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { gtadbToWorld } from '../../src/features/street-leonida/leonida-coordinates';
+import {
+  createGtadbGroundTileStream,
+  getGtadbTileWorldCenter,
+  listGtadbGroundTiles,
+} from '../../src/features/street-leonida/walk-cartography';
 import { collidesWithBuildings } from '../../src/features/street-leonida/walk-engine';
 import {
   adjustArrivalForCollisions,
@@ -15,6 +20,11 @@ import {
 } from '../../src/features/street-leonida/walk-world';
 
 describe('Street Leonida human and world scale', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it('uses a human eye height, body radius, and plausible walk/run speeds', () => {
     expect(WALK_PLAYER_CONFIG).toEqual({
       eyeHeightMetres: 1.72,
@@ -30,10 +40,68 @@ describe('Street Leonida human and world scale', () => {
     expect('globalMovementBounds' in WALK_WORLD_RENDER_CONFIG).toBe(false);
   });
 
-  it('keeps streamed cartography local enough for responsive region travel', () => {
-    expect(WALK_WORLD_RENDER_CONFIG.desktopCartographyTileRadius).toBe(1);
-    expect(WALK_WORLD_RENDER_CONFIG.mobileCartographyTileRadius).toBe(1);
+  it('covers a neighborhood beyond the arrival while retaining a smaller mobile tile budget', () => {
+    const arrival = gtadbToWorld({ x: -471.907, y: -297.61 });
+    expect(WALK_WORLD_RENDER_CONFIG.desktopCartographyTileRadius).toBe(3);
+    expect(WALK_WORLD_RENDER_CONFIG.mobileCartographyTileRadius).toBe(2);
+    expect(
+      listGtadbGroundTiles(arrival, WALK_WORLD_RENDER_CONFIG.desktopCartographyTileRadius),
+    ).toHaveLength(49);
+    expect(
+      listGtadbGroundTiles(arrival, WALK_WORLD_RENDER_CONFIG.mobileCartographyTileRadius),
+    ).toHaveLength(25);
   });
+
+  it.each([
+    ['desktop', 300, WALK_WORLD_RENDER_CONFIG.desktopCartographyTileRadius],
+    ['mobile', 220, WALK_WORLD_RENDER_CONFIG.mobileCartographyTileRadius],
+  ] as const)(
+    'limits %s facade detail to %i metres without deleting distant buildings',
+    (detail, distance, radius) => {
+      const pixels = new Uint8ClampedArray(256 * 256 * 4).fill(216);
+      for (let y = 120; y < 128; y++)
+        for (let x = 120; x < 128; x++) {
+          pixels.set([176, 176, 176, 255], (y * 256 + x) * 4);
+        }
+      vi.stubGlobal('document', {
+        createElement: () => ({
+          getContext: () => ({
+            drawImage() {},
+            getImageData: () => ({ data: pixels, width: 256, height: 256 }),
+          }),
+        }),
+      });
+      const loads: Array<() => void> = [];
+      vi.spyOn(THREE.TextureLoader.prototype, 'load').mockImplementation((_url, onLoad) => {
+        const texture = new THREE.Texture<HTMLImageElement>();
+        texture.image = {} as HTMLImageElement;
+        loads.push(() => onLoad?.(texture));
+        return texture;
+      });
+      const stream = createGtadbGroundTileStream({ radius, anisotropy: 1, detail });
+      const center = getGtadbTileWorldCenter({ z: 5, x: 10, y: 30 });
+      const farPosition = { x: center.x + 256 - distance - 1, z: center.z };
+      stream.sync(farPosition);
+      loads.forEach((complete) => complete());
+      const building = stream.root.getObjectByName('gtadb-approximate-buildings-11-30')!;
+      const collisionCount = stream.collisions.length;
+      expect(building).toBeInstanceOf(THREE.Group);
+      expect(building.children.length).toBeGreaterThan(0);
+      expect(building.getObjectByName(`${building.name}-detail`)).toBeUndefined();
+      const distantMass = building.children[0];
+
+      stream.sync({ x: farPosition.x + 2, z: farPosition.z });
+      const closeDetail = building.getObjectByName(`${building.name}-detail`)!;
+      expect(closeDetail.visible).toBe(true);
+      expect(closeDetail.children.length).toBeGreaterThan(0);
+      stream.sync(farPosition);
+      expect(closeDetail.visible).toBe(false);
+      expect(building.visible).toBe(true);
+      expect(building.children[0]).toBe(distantMass);
+      expect(stream.collisions).toHaveLength(collisionCount);
+      stream.dispose();
+    },
+  );
 
   it('caps total framebuffer work and throttles DOM telemetry on large displays', () => {
     expect(WALK_WORLD_RENDER_CONFIG.desktopPixelBudget).toBeLessThanOrEqual(5_000_000);
@@ -42,7 +110,7 @@ describe('Street Leonida human and world scale', () => {
   });
 
   it('enables restrained image-based lighting for reflective glass and metal', () => {
-    expect(WALK_WORLD_RENDER_CONFIG.environmentIntensity).toBeCloseTo(0.42, 5);
+    expect(WALK_WORLD_RENDER_CONFIG.environmentIntensity).toBeCloseTo(0.75, 5);
     expect(WALK_WORLD_RENDER_CONFIG.toneMappingExposure).toBeCloseTo(0.94, 5);
     expect(WALK_WORLD_RENDER_CONFIG.shadowFilter).toBe('pcf');
     expect(WALK_WORLD_RENDER_CONFIG.shadowMapSize).toBe(1024);

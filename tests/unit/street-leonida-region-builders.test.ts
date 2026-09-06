@@ -44,8 +44,14 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('keeps a shared regional geometry alive until every simultaneous owner releases it', () => {
-    const first = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
-    const second = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
+    const first = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
+    const second = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
     const firstGeometries = new Set<THREE.BufferGeometry>();
     const secondGeometries = new Set<THREE.BufferGeometry>();
     first.root.traverse((object) => {
@@ -65,8 +71,26 @@ describe('Street Leonida lazy region builders', () => {
     expect(disposeSharedGeometry).toHaveBeenCalledOnce();
   });
 
+  it.each(['vice-city', 'leonida-keys'] as const)(
+    'keeps %s continuity below source roads while preserving authored paving',
+    (region) => {
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
+      const terrain = resource.root.getObjectByName(`${region}-approximate-terrain`)!;
+      const land = terrain.getObjectByName(`${region}-approximate-land-surface`)!;
+      expect(land.getWorldPosition(new THREE.Vector3()).y).toBeLessThan(0.055);
+      const road = resource.root.getObjectByName(`${region}-arrival-road`)!;
+      expect(new THREE.Box3().setFromObject(road).max.y).toBeGreaterThan(0.2);
+    },
+  );
+
   it('builds only the requested regional landmark and architecture roots', () => {
-    const resource = buildWalkRegion('port-gellhorn', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('port-gellhorn', {
+      renderer,
+      coarsePointer: false,
+    });
 
     expect(resource.root.getObjectByName('landmarks-port-gellhorn')).toBeDefined();
     expect(resource.root.getObjectByName('architecture-port-gellhorn')).toBeDefined();
@@ -93,7 +117,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('keeps the Ambrosia datum at L399 while placing each audited feature at its own world anchor', () => {
-    const resource = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
     resource.root.updateMatrixWorld(true);
     const office = resource.root.getObjectByName('ambrosia-generic-roadside-office');
     const xeroCanopy = resource.root.getObjectByName('ambrosia-gas-canopy');
@@ -117,7 +144,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('renders one L406 Xero and keeps the L399 arrival market explicitly generic', () => {
-    const resource = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
     const xeroClaims: THREE.Object3D[] = [];
     resource.root.traverse((object) => {
       if (object.userData.communityId === 'L406') xeroClaims.push(object);
@@ -138,7 +168,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('uses isolated pads instead of one Ambrosia terrain polygon spanning remote GTADB anchors', () => {
-    const resource = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
     const land = resource.root.getObjectByName('ambrosia-approximate-land-surface') as THREE.Mesh;
 
     expect(land.scale.x).toBeLessThanOrEqual(1_000);
@@ -157,7 +190,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('filters regional vegetation and releases the detached resource once', () => {
-    const resource = buildWalkRegion('vice-city', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('vice-city', {
+      renderer,
+      coarsePointer: false,
+    });
     const parent = new THREE.Scene();
     parent.add(resource.root);
     const cypresses = resource.root.getObjectByName(
@@ -186,7 +222,10 @@ describe('Street Leonida lazy region builders', () => {
   ] as const)(
     'builds an approximate %s terrain silhouette without square ground or water patches',
     (region, terrainProfile) => {
-      const desktop = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const desktop = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const mobile = buildWalkRegion(region, { renderer, coarsePointer: true });
       const desktopTerrain = desktop.root.getObjectByName(`${region}-approximate-terrain`);
       const mobileTerrain = mobile.root.getObjectByName(`${region}-approximate-terrain`);
@@ -221,9 +260,12 @@ describe('Street Leonida lazy region builders', () => {
   );
 
   it.each(['vice-city', 'leonida-keys', 'grassrivers', 'port-gellhorn', 'mount-kalaga'] as const)(
-    'layers %s regional surfaces above global tiles and water continuity',
+    'keeps %s fallback surfaces below source tiles and above deep water',
     (region) => {
-      const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const landSurface = resource.root.getObjectByName(
         `${region}-approximate-land-surface`,
       ) as THREE.Mesh;
@@ -231,8 +273,9 @@ describe('Street Leonida lazy region builders', () => {
         `${region}-approximate-water-surface`,
       ) as THREE.Mesh;
 
-      expect(landSurface.position.y).toBeGreaterThan(0.055);
-      expect(waterSurface.position.y).toBeGreaterThan(0.055);
+      expect(landSurface.position.y).toBeLessThan(0.055);
+      expect(landSurface.position.y).toBeGreaterThan(-1.89);
+      expect(waterSurface.position.y).toBeLessThan(0.055);
       expect(waterSurface.position.y).toBeGreaterThan(-0.19);
     },
   );
@@ -240,7 +283,10 @@ describe('Street Leonida lazy region builders', () => {
   it.each(['vice-city', 'mount-kalaga'] as const)(
     'keeps %s regional water exposed above its regional land surface',
     (region) => {
-      const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const landSurface = resource.root.getObjectByName(
         `${region}-approximate-land-surface`,
       ) as THREE.Mesh;
@@ -258,7 +304,10 @@ describe('Street Leonida lazy region builders', () => {
   ] as const)(
     'gives %s %s accents their intended world footprint',
     (region, accent, width, depth) => {
-      const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const accentMesh = resource.root.getObjectByName(
         `${region}-approximate-infill-${accent}`,
       ) as THREE.InstancedMesh;
@@ -281,7 +330,10 @@ describe('Street Leonida lazy region builders', () => {
   ] as const)(
     'uses separate, materially distinct land and water surfaces for %s',
     (region, groundColor, waterColor) => {
-      const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const land = resource.root.getObjectByName(`${region}-approximate-land`) as THREE.Group;
       const water = resource.root.getObjectByName(`${region}-approximate-water`) as THREE.Group;
       const landSurface = land.getObjectByName(`${region}-approximate-land-surface`) as THREE.Mesh;
@@ -301,7 +353,10 @@ describe('Street Leonida lazy region builders', () => {
   );
 
   it('does not fabricate a Lake Leonida surface inside the Ambrosia region', () => {
-    const resource = buildWalkRegion('ambrosia', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('ambrosia', {
+      renderer,
+      coarsePointer: false,
+    });
 
     expect(resource.root.getObjectByName('ambrosia-lake-leonida')).toBeUndefined();
     expect(resource.root.getObjectByName('ambrosia-approximate-water-surface')).toBeUndefined();
@@ -312,7 +367,10 @@ describe('Street Leonida lazy region builders', () => {
     ['grassrivers', 'grassrivers-arrival-water'],
     ['mount-kalaga', 'kalaga-arrival-river'],
   ] as const)('keeps the authored %s water visible above regional ground', (region, name) => {
-    const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+    const resource = buildWalkRegion(region, {
+      renderer,
+      coarsePointer: false,
+    });
     const water = resource.root.getObjectByName(name);
     if (!water) throw new Error(`${name} missing`);
     resource.root.updateMatrixWorld(true);
@@ -323,7 +381,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('uses an instanced winding road through the Mount Kalaga rock cut', () => {
-    const resource = buildWalkRegion('mount-kalaga', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('mount-kalaga', {
+      renderer,
+      coarsePointer: false,
+    });
     const road = resource.root.getObjectByName('mount-kalaga-arrival-road') as THREE.InstancedMesh;
     const segmentMatrix = new THREE.Matrix4();
     const segmentPosition = new THREE.Vector3();
@@ -347,7 +408,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('keeps the legacy Mount Kalaga shelter visibly classified as approximate infill', () => {
-    const resource = buildWalkRegion('mount-kalaga', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('mount-kalaga', {
+      renderer,
+      coarsePointer: false,
+    });
     const shelter = resource.root.getObjectByName('mount-kalaga-approximate-trail-shelter');
 
     expect(shelter).toBeInstanceOf(THREE.Group);
@@ -359,7 +423,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('keeps Keys island surfaces separated instead of covering the same local water', () => {
-    const resource = buildWalkRegion('leonida-keys', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('leonida-keys', {
+      renderer,
+      coarsePointer: false,
+    });
     const islands = resource.root.getObjectByName('leonida-keys-approximate-land') as THREE.Group;
     const islandBoxes = islands.children
       .filter((object): object is THREE.Mesh => object instanceof THREE.Mesh)
@@ -383,7 +450,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('keeps Keys islands above the channel in world space while preserving the raster beneath them', () => {
-    const resource = buildWalkRegion('leonida-keys', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('leonida-keys', {
+      renderer,
+      coarsePointer: false,
+    });
     const land = resource.root.getObjectByName('leonida-keys-approximate-land') as THREE.Group;
     const water = resource.root.getObjectByName(
       'leonida-keys-approximate-water-surface',
@@ -421,8 +491,11 @@ describe('Street Leonida lazy region builders', () => {
     expect(islandMaterial.depthWrite).toBe(true);
   });
 
-  it('uses polygon-offset material contracts to separate regional surfaces from GTADB tiles', () => {
-    const resource = buildWalkRegion('vice-city', { renderer, coarsePointer: false });
+  it('does not pull approximate fallback surfaces forward over source cartography', () => {
+    const resource = buildWalkRegion('vice-city', {
+      renderer,
+      coarsePointer: false,
+    });
     const land = resource.root.getObjectByName('vice-city-approximate-land-surface') as THREE.Mesh;
     const water = resource.root.getObjectByName(
       'vice-city-approximate-water-surface',
@@ -433,15 +506,18 @@ describe('Street Leonida lazy region builders', () => {
 
     for (const material of [land.material, water.material, accent.material] as THREE.Material[]) {
       expect(material.polygonOffset).toBe(true);
-      expect(material.polygonOffsetUnits).toBeLessThan(0);
+      expect(material.polygonOffsetUnits).toBeGreaterThanOrEqual(0);
+      expect(material.polygonOffsetFactor).toBeGreaterThanOrEqual(0);
     }
-    expect((accent.material as THREE.MeshStandardMaterial).polygonOffsetUnits).toBeLessThan(
-      (water.material as THREE.MeshPhysicalMaterial).polygonOffsetUnits,
-    );
+    expect(land.position.y).toBeLessThan(water.position.y);
+    expect(water.position.y).toBeLessThan(0.055);
   });
 
   it('builds raised forest rock-cut terrain at Mount Kalaga and disposes shared terrain resources once', () => {
-    const resource = buildWalkRegion('mount-kalaga', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('mount-kalaga', {
+      renderer,
+      coarsePointer: false,
+    });
     const relief = resource.root.getObjectByName('mount-kalaga-approximate-relief') as THREE.Mesh;
     const terrain = resource.root.getObjectByName(
       'mount-kalaga-approximate-terrain',
@@ -470,7 +546,10 @@ describe('Street Leonida lazy region builders', () => {
     'mount-kalaga',
   ] as const)('keeps %s terrain at its established regional anchor', (region) => {
     const anchorBeforeBuild = { ...getWalkRegionPrimaryAnchor(region) };
-    const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+    const resource = buildWalkRegion(region, {
+      renderer,
+      coarsePointer: false,
+    });
     const terrain = resource.root.getObjectByName(`${region}-approximate-terrain`);
     if (!terrain) throw new Error('Approximate terrain missing');
     terrain.updateMatrixWorld(true);
@@ -488,7 +567,10 @@ describe('Street Leonida lazy region builders', () => {
     ['port-gellhorn', 'road'],
     ['ambrosia', 'soil-bands'],
   ] as const)('lays the %s %s terrain accent flat on the ground', (region, accent) => {
-    const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+    const resource = buildWalkRegion(region, {
+      renderer,
+      coarsePointer: false,
+    });
     const terrainAccent = resource.root.getObjectByName(
       `${region}-approximate-infill-${accent}`,
     ) as THREE.InstancedMesh;
@@ -499,21 +581,34 @@ describe('Street Leonida lazy region builders', () => {
     expect(Math.abs(normal.y)).toBeGreaterThan(0.99);
   });
 
-  it('uses photographic southern pines without low-poly cone overlays at Mount Kalaga', () => {
-    const resource = buildWalkRegion('mount-kalaga', { renderer, coarsePointer: false });
+  it('preserves pine occupancy with native nearby trees and distant photographic impostors', () => {
+    const resource = buildWalkRegion('mount-kalaga', {
+      renderer,
+      coarsePointer: false,
+    });
     const arrival = resource.root.getObjectByName('mount-kalaga-arrival-park-road');
     const photoPines = arrival?.getObjectByName(
       'kalaga-arrival-photo-pines',
     ) as THREE.InstancedMesh;
 
     expect(photoPines).toBeInstanceOf(THREE.InstancedMesh);
-    expect(photoPines.count).toBeGreaterThanOrEqual(100);
+    const nativePines = arrival
+      ?.getObjectByName('kalaga-arrival-photo-pines-native')
+      ?.getObjectByName('pine-tapered-trunks') as THREE.InstancedMesh;
+    expect(nativePines).toBeInstanceOf(THREE.InstancedMesh);
+    expect(photoPines.count + nativePines.count).toBeGreaterThanOrEqual(150);
     expect(arrival?.getObjectByName('kalaga-arrival-pines-canopies')).toBeUndefined();
   });
 
   it('places readable textured identity signs in Port Gellhorn and Mount Kalaga', () => {
-    const port = buildWalkRegion('port-gellhorn', { renderer, coarsePointer: false });
-    const kalaga = buildWalkRegion('mount-kalaga', { renderer, coarsePointer: false });
+    const port = buildWalkRegion('port-gellhorn', {
+      renderer,
+      coarsePointer: false,
+    });
+    const kalaga = buildWalkRegion('mount-kalaga', {
+      renderer,
+      coarsePointer: false,
+    });
     const motelSign = port.root.getObjectByName('port-starlet-motel-sign-face') as THREE.Mesh;
     const parkSign = kalaga.root.getObjectByName('kalaga-arrival-park-sign-face') as THREE.Mesh;
     const parkSignBacking = kalaga.root.getObjectByName('kalaga-arrival-park-sign') as THREE.Mesh;
@@ -569,7 +664,10 @@ describe('Street Leonida lazy region builders', () => {
   ] as const)(
     'builds a dense, walkable arrival foreground for %s',
     (region, placeSlug, featureId, vegetationAsset) => {
-      const resource = buildWalkRegion(region, { renderer, coarsePointer: false });
+      const resource = buildWalkRegion(region, {
+        renderer,
+        coarsePointer: false,
+      });
       const arrival = resource.root.getObjectByName(featureId);
       const entry = PLACE_ENTRY_VIEWS[placeSlug]!.position;
       if (!arrival) throw new Error(`${featureId} missing`);
@@ -598,8 +696,14 @@ describe('Street Leonida lazy region builders', () => {
   );
 
   it('renders a layered Vice City streetscape at the reviewed arrival without generic-box draw-call bloat', () => {
-    const desktop = buildWalkRegion('vice-city', { renderer, coarsePointer: false });
-    const mobile = buildWalkRegion('vice-city', { renderer, coarsePointer: true });
+    const desktop = buildWalkRegion('vice-city', {
+      renderer,
+      coarsePointer: false,
+    });
+    const mobile = buildWalkRegion('vice-city', {
+      renderer,
+      coarsePointer: true,
+    });
     const arrival = desktop.root.getObjectByName('vice-city-arrival-urban-boulevard');
     const mobileArrival = mobile.root.getObjectByName('vice-city-arrival-urban-boulevard');
     if (!arrival || !mobileArrival) throw new Error('Vice City arrival foreground missing');
@@ -635,7 +739,7 @@ describe('Street Leonida lazy region builders', () => {
     expect((wetAccents.material as THREE.MeshPhysicalMaterial).roughness).toBeLessThan(0.35);
     const boulevardRoad = arrival.getObjectByName('vice-city-arrival-road') as THREE.Mesh;
     const boulevardRoadMaterial = boulevardRoad.material as THREE.MeshStandardMaterial;
-    expect(boulevardRoadMaterial.color.getHex()).toBe(0x777874);
+    expect(boulevardRoadMaterial.color.getHex()).toBe(0xa6aeb5);
     expect(boulevardRoadMaterial.roughness).toBeGreaterThanOrEqual(0.94);
     expect(boulevardRoadMaterial.metalness).toBeLessThanOrEqual(0.005);
     expect(boulevardRoadMaterial.envMapIntensity).toBeLessThanOrEqual(0.18);
@@ -649,7 +753,8 @@ describe('Street Leonida lazy region builders', () => {
       (arrival.getObjectByName('vice-city-arrival-signal-heads') as THREE.InstancedMesh).count,
     ).toBe(6);
 
-    expect(renderables.length).toBeLessThanOrEqual(38);
+    // The extra draws cover skinned people and two native vegetation batches per planting.
+    expect(renderables.length).toBeLessThanOrEqual(50);
     expect(arrival.userData.detailCount).toBeGreaterThanOrEqual(240);
     expect(mobileArrival.userData.detailCount).toBeLessThan(arrival.userData.detailCount);
     expect(arrival.userData.confidence).toBe('VISUAL_REFERENCE_ONLY');
@@ -657,7 +762,10 @@ describe('Street Leonida lazy region builders', () => {
   });
 
   it('does not allocate the superseded legacy Catalan corridor behind the new Vice City arrival', () => {
-    const resource = buildWalkRegion('vice-city', { renderer, coarsePointer: false });
+    const resource = buildWalkRegion('vice-city', {
+      renderer,
+      coarsePointer: false,
+    });
     const legacyCorridor = resource.root.getObjectByName('vice-city-catalan-boulevard');
 
     expect(legacyCorridor).toBeUndefined();

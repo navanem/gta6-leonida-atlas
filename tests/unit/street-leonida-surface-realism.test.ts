@@ -224,9 +224,11 @@ describe('Street Leonida humid atmosphere', () => {
 
     expect(preset.sunElevation).toBeGreaterThanOrEqual(24);
     expect(preset.sunElevation).toBeLessThanOrEqual(32);
-    expect(preset.sunIntensity / flatLight).toBeGreaterThan(3.2);
-    expect(preset.cloudOpacity).toBeGreaterThanOrEqual(0.1);
-    expect(preset.cloudOpacity).toBeLessThanOrEqual(0.15);
+    expect(preset.sunIntensity).toBeCloseTo(4.1, 5);
+    expect(preset.hemisphereIntensity).toBeCloseTo(1.24, 5);
+    expect(preset.ambientIntensity).toBeCloseTo(0.27, 5);
+    expect(preset.sunIntensity / flatLight).toBeGreaterThan(2.4);
+    expect(preset.cloudOpacity).toBeCloseTo(0.58, 5);
     expect(preset.fogDensity).toBeGreaterThanOrEqual(0.0011);
     expect(preset.fogDensity).toBeLessThanOrEqual(0.0015);
   });
@@ -268,10 +270,14 @@ describe('Street Leonida humid atmosphere', () => {
     expect(upperSky.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.5);
     expect(Math.max(cloudColor.r, cloudColor.g, cloudColor.b)).toBeGreaterThan(0.92);
     expect(Math.abs(cloudColor.r - cloudColor.b)).toBeLessThan(0.08);
-    expect(atmosphere.clouds.material.blending).toBe(THREE.AdditiveBlending);
+    expect(atmosphere.clouds.material.blending).toBe(THREE.NormalBlending);
+    expect(atmosphere.clouds.material.depthWrite).toBe(false);
+    expect(
+      atmosphere.clouds.material.vertexColors && !atmosphere.clouds.geometry.hasAttribute('color'),
+    ).toBe(false);
     expect(cloudInstanceColor.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.93);
     expect(Math.min(...cloudPixels.filter((_, index) => index % 4 !== 3))).toBeGreaterThanOrEqual(
-      246,
+      200,
     );
     expect(Math.abs(cloudNormal.y)).toBeLessThan(0.25);
     expect(atmosphere.clouds.count).toBeLessThanOrEqual(10);

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { STREET_LEONIDA_REGION_MANIFESTS } from '../../src/features/street-leonida/leonida-evidence';
 import { setupWalkAtmosphere } from '../../src/features/street-leonida/walk-atmosphere';
+import { collidesWithBuildings } from '../../src/features/street-leonida/walk-engine';
 import { buildWalkRegion } from '../../src/features/street-leonida/walk-region-builders';
 import {
   WALK_ROCKSTAR_REFERENCE_PROFILES,
@@ -46,7 +47,6 @@ const EXPECTED_HERO_DETAILS: Readonly<Record<RockstarReferenceRegion, readonly s
   ],
   grassrivers: [
     'grassrivers-waterfront-settlement',
-    'grassrivers-dock-life-sprite',
     'grassrivers-water-tower',
     'grassrivers-marsh-surface',
     'grassrivers-dock-fleet',
@@ -62,14 +62,12 @@ const EXPECTED_HERO_DETAILS: Readonly<Record<RockstarReferenceRegion, readonly s
   ],
   ambrosia: [
     'ambrosia-arrival-roadside-market',
-    'ambrosia-biker-pack',
     'ambrosia-utility-grid',
     'ambrosia-weathered-billboard-face',
     'ambrosia-industrial-horizon',
   ],
   'mount-kalaga': [
     'kalaga-weathered-rock-cut-corridor',
-    'kalaga-forest-life-sprite',
     'kalaga-rock-cut-cliff-masses',
     'kalaga-overhead-rail-bridge',
     'kalaga-industrial-silo-site',
@@ -171,7 +169,34 @@ describe('Street Leonida Rockstar visual references', () => {
       expect(arrival?.userData.rockstarPrimaryShot).toBe(
         WALK_ROCKSTAR_REFERENCE_PROFILES[region].primaryShot,
       );
+      expect(arrival).toBeInstanceOf(THREE.Group);
+      const actors: THREE.SkinnedMesh[] = [];
+      arrival!.traverse((object) => {
+        if (object instanceof THREE.SkinnedMesh) actors.push(object);
+      });
+      expect(actors).toHaveLength(4);
+      const geometries = actors.map((actor) => actor.geometry);
+      const material = actors[0]!.material;
+      const boneRotations = actors.map((actor) => actor.skeleton.bones[4]!.rotation.y);
+      for (const actor of actors) {
+        expect(actor.parent).toBeInstanceOf(THREE.Group);
+        expect(actor.parent!.userData.renderProfile).toBe('single-mesh-pedestrian');
+        expect(actor.geometry.hasAttribute('skinIndex')).toBe(true);
+        expect(actor.geometry.hasAttribute('skinWeight')).toBe(true);
+        expect(actor.skeleton.bones.length).toBeGreaterThanOrEqual(16);
+        expect(actor.material).toBe(material);
+        const position = actor.parent!.getWorldPosition(new THREE.Vector3());
+        expect(collidesWithBuildings(position, 0.25, resource.collisions)).toBe(false);
+      }
+      resource.update(2);
+      actors.forEach((actor, index) => {
+        expect(actor.geometry).toBe(geometries[index]);
+        expect(actor.material).toBe(material);
+        expect(actor.skeleton.bones[4]!.rotation.y).not.toBe(boneRotations[index]);
+      });
+      const releaseSkeleton = vi.spyOn(actors[0]!.skeleton, 'dispose');
       resource.dispose();
+      expect(releaseSkeleton).toHaveBeenCalledOnce();
     },
   );
 
@@ -215,7 +240,9 @@ describe('Street Leonida Rockstar visual references', () => {
     ) as THREE.InstancedMesh;
     const reeds = resource.root.getObjectByName('grassrivers-reed-beds') as THREE.InstancedMesh;
     const waterTower = resource.root.getObjectByName('grassrivers-water-tower');
-    const dockLife = resource.root.getObjectByName('grassrivers-dock-life-sprite');
+    const people = arrival?.children.filter((object) =>
+      object.children.some((child) => child instanceof THREE.SkinnedMesh),
+    );
     if (
       !arrival ||
       !water ||
@@ -224,7 +251,7 @@ describe('Street Leonida Rockstar visual references', () => {
       !marshEdge ||
       !reeds ||
       !waterTower ||
-      !dockLife
+      !people
     ) {
       throw new Error('Grassrivers arrival identity missing');
     }
@@ -239,8 +266,20 @@ describe('Street Leonida Rockstar visual references', () => {
       waterMaterial.color.b * 0.0722;
     expect(waterLuminance).toBeLessThan(0.065);
     expect(waterMaterial.color.g).toBeGreaterThan(waterMaterial.color.r);
-    expect(waterMaterial.roughness).toBeGreaterThanOrEqual(0.34);
+    expect(waterMaterial.roughness).toBeGreaterThanOrEqual(0.2);
+    expect(waterMaterial.roughness).toBeLessThanOrEqual(0.3);
     expect(waterMaterial.metalness).toBeLessThanOrEqual(0.04);
+    const waterShader = {
+      vertexShader: THREE.ShaderLib.physical.vertexShader,
+      fragmentShader: THREE.ShaderLib.physical.fragmentShader,
+      uniforms: {},
+    } as Parameters<typeof waterMaterial.onBeforeCompile>[0];
+    const compileWater = waterMaterial.onBeforeCompile;
+    compileWater(waterShader, renderer);
+    expect(waterShader.uniforms.atlasWaterStrength!.value).toBeCloseTo(0.45, 5);
+    expect(waterShader.uniforms.atlasWaterTime!.value).toBe(0);
+    resource.update(1.5);
+    expect(waterShader.uniforms.atlasWaterTime!.value).toBe(1.5);
     expect((marshEdge.material as THREE.MeshStandardMaterial).opacity).toBeLessThanOrEqual(0.62);
 
     const outposts: THREE.Object3D[] = [];
@@ -279,12 +318,14 @@ describe('Street Leonida Rockstar visual references', () => {
       evidence: 'APPROXIMATE',
       namedLandmark: false,
     });
-    expect(dockLife.userData.visualAsset).toBe(
-      '/assets/street-leonida/sprites/reference-led-life-atlas.png',
-    );
+    expect(people).toHaveLength(4);
+    expect(resource.root.getObjectByName('grassrivers-dock-life-sprite')).toBeUndefined();
     expect(signCopy.join(' ')).toMatch(/APPROXIMATE/i);
     expect(signCopy.join(' ')).not.toMatch(/WATSON|KEY LENTO/i);
     resource.dispose();
+    resource.update(3);
+    expect(waterShader.uniforms.atlasWaterTime!.value).toBe(1.5);
+    expect(waterMaterial.onBeforeCompile).not.toBe(compileWater);
   });
 
   it('renders Mount Kalaga as a humid forest rock cut rather than a desert canyon', () => {
@@ -296,6 +337,11 @@ describe('Street Leonida Rockstar visual references', () => {
     const photoPines = resource.root.getObjectByName(
       'kalaga-arrival-photo-pines',
     ) as THREE.InstancedMesh;
+    const nativePines = resource.root.getObjectByName('kalaga-arrival-photo-pines-native');
+    const pineTrunks = nativePines?.getObjectByName('pine-tapered-trunks') as THREE.InstancedMesh;
+    const pineLeaves = nativePines?.getObjectByName(
+      'pine-individual-leaves',
+    ) as THREE.InstancedMesh;
 
     expect(corridor).toBeDefined();
     expect(resource.root.getObjectByName('kalaga-red-rock-canyon')).toBeUndefined();
@@ -304,18 +350,31 @@ describe('Street Leonida Rockstar visual references', () => {
       'street-leonida/surface/0-0',
     );
     expect((cliffMasses.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xcfc0ae);
-    expect(photoPines.count).toBeGreaterThanOrEqual(150);
+    expect(photoPines).toBeInstanceOf(THREE.InstancedMesh);
+    expect(photoPines.userData.photoAsset).toBe(
+      '/assets/street-leonida/vegetation/southern-pine.webp',
+    );
+    expect(nativePines).toBeInstanceOf(THREE.Group);
+    expect(pineTrunks).toBeInstanceOf(THREE.InstancedMesh);
+    expect(pineLeaves).toBeInstanceOf(THREE.InstancedMesh);
+    expect(pineLeaves.count).toBe(pineTrunks.count);
+    expect(pineTrunks.count).toBeGreaterThan(0);
+    expect(photoPines.count + pineTrunks.count).toBeGreaterThanOrEqual(150);
+    expect(pineLeaves.geometry.getAttribute('position').count).toBeGreaterThan(12);
+    expect((pineLeaves.material as THREE.MeshStandardMaterial).map).toBeNull();
     const pineMatrix = new THREE.Matrix4();
     const pinePosition = new THREE.Vector3();
-    for (let index = 0; index < photoPines.count; index += 1) {
-      photoPines.getMatrixAt(index, pineMatrix);
-      pinePosition.setFromMatrixPosition(pineMatrix);
-      const obscuresIdentitySign =
-        pinePosition.x >= -22 &&
-        pinePosition.x <= -4 &&
-        pinePosition.z >= -45 &&
-        pinePosition.z <= 8;
-      expect(obscuresIdentitySign).toBe(false);
+    for (const pines of [photoPines, pineTrunks]) {
+      for (let index = 0; index < pines.count; index += 1) {
+        pines.getMatrixAt(index, pineMatrix);
+        pinePosition.setFromMatrixPosition(pineMatrix);
+        const obscuresIdentitySign =
+          pinePosition.x >= -22 &&
+          pinePosition.x <= -4 &&
+          pinePosition.z >= -45 &&
+          pinePosition.z <= 8;
+        expect(obscuresIdentitySign).toBe(false);
+      }
     }
     resource.dispose();
   });
@@ -356,7 +415,8 @@ describe('Street Leonida Rockstar visual references', () => {
     expect(portSky).not.toBe(initialSky);
     expect(keysSky).not.toBe(portSky);
     expect(atmosphere.sunLight.intensity).toBeGreaterThan(portIntensity * 2);
-    expect(atmosphere.clouds.material.opacity).toBeLessThanOrEqual(0.4);
+    expect(atmosphere.clouds.material.opacity).toBeCloseTo(0.64, 5);
+    expect(atmosphere.clouds.material.blending).toBe(THREE.NormalBlending);
     atmosphere.dispose();
   });
 });

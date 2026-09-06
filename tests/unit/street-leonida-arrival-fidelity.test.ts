@@ -314,7 +314,9 @@ describe('Street Leonida evidence-led arrival fidelity', () => {
       'keys-rusty-anchor-picnic-tabletops',
     ) as THREE.InstancedMesh;
     const seats = landmark.getObjectByName('keys-rusty-anchor-picnic-seats') as THREE.InstancedMesh;
-    const palms = landmark.getObjectByName('keys-rusty-anchor-photo-palms') as THREE.InstancedMesh;
+    const palms = landmark
+      .getObjectByName('keys-rusty-anchor-photo-palms-native')
+      ?.getObjectByName('palm-tapered-trunks') as THREE.InstancedMesh;
 
     expect(landmark.getObjectByName('keys-rusty-anchor-central-gable')).toBeInstanceOf(THREE.Mesh);
     expect(landmark.getObjectByName('keys-rusty-anchor-central-chimney')).toBeInstanceOf(
@@ -332,13 +334,15 @@ describe('Street Leonida evidence-led arrival fidelity', () => {
     expect(tabletops.count).toBe(3);
     expect(seats.count).toBe(6);
     expect(palms.count).toBe(3);
-    expect(palms.userData.photoAsset).toBe('/assets/street-leonida/vegetation/royal-palm.webp');
+    expect(palms.geometry.attributes.position).toBeDefined();
+    expect(landmark.getObjectByName('palm-individual-leaves')).toBeInstanceOf(THREE.InstancedMesh);
 
     let renderableCount = 0;
     landmark.traverse((object) => {
       if (object instanceof THREE.Mesh) renderableCount += 1;
     });
-    expect(renderableCount).toBeLessThanOrEqual(30);
+    // Three native palms use separate shared trunk and crown draws.
+    expect(renderableCount).toBeLessThanOrEqual(31);
 
     feature.updateMatrixWorld(true);
     const frontage = new THREE.Vector3(0, 0, 1)

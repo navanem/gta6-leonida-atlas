@@ -5,8 +5,8 @@
     "strict": true, "noUncheckedIndexedAccess": true, "noEmit": true,
     "allowJs": true, "allowImportingTsExtensions": true, "resolveJsonModule": true,
     "esModuleInterop": true, "skipLibCheck": true, "verbatimModuleSyntax": true,
-    "types": ["vite/client", "node"], "baseUrl": ".",
-    "paths": { "@/*": ["src/*"], "@features/*": ["src/features/*"], "@lib/*": ["src/lib/*"] }
+    "types": ["vite/client", "node"],
+    "paths": { "@/*": ["./src/*"], "@features/*": ["./src/features/*"], "@lib/*": ["./src/lib/*"] }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.ts"],
   "exclude": ["dist", "node_modules"]

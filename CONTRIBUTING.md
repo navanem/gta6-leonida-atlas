@@ -14,7 +14,7 @@ By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Local setup
 
-Requirements: Node.js 22.12 or newer and pnpm 10 or newer.
+Requirements: Node.js 22.13+ within the 22.x line, 24.x, or 26+ and pnpm 10 or newer.
 
 ```sh
 git clone https://github.com/navanem/gta6-leonida-atlas.git

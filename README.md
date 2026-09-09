@@ -62,7 +62,7 @@ Current release: **v0.8.0** · [Release notes](RELEASES.md) · [All GitHub relea
 
 ## Run it locally
 
-You need Node.js 22.12+ and pnpm 10+.
+You need Node.js 22.13+ within the 22.x line, 24.x, or 26+ and pnpm 10+.
 
 ```sh
 git clone https://github.com/navanem/gta6-leonida-atlas.git

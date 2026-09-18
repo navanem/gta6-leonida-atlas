@@ -17,6 +17,7 @@ import {
 } from '../stores/atlas';
 import { Sidebar } from './Sidebar';
 import { resolveRoute } from './routes';
+import { updateAtlasHead } from './seo';
 import type { Position } from '../domain/types';
 
 const PlaceDetails = lazy(() => import('../features/library/PlaceDetails'));
@@ -35,6 +36,7 @@ if (!atlasRegistry.sources.has('public'))
 
 export default function App() {
   const [route, setRoute] = useState(() => resolveRoute(location.pathname, location.search));
+  useEffect(() => { updateAtlasHead(location.pathname, location.search); }, [route]);
   const places = useDomainStore((s) => s.places);
   const status = useDomainStore((s) => s.status);
   const error = useDomainStore((s) => s.error);

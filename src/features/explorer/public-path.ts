@@ -5,7 +5,7 @@ export function publicPath(path: string, base = import.meta.env?.BASE_URL ?? '/'
 }
 
 export function projectPath(page: string): string {
-  return `${publicPath('')}?page=${encodeURIComponent(page)}`;
+  return publicPath(encodeURIComponent(page));
 }
 
 /** Preserve map selection in reloadable explorer links without exposing local marker content. */

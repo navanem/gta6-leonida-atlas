@@ -1,34 +1,43 @@
-import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { createHash } from 'node:crypto';
-import { loadEnv } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { createServer, loadEnv } from "vite";
 
-const outDir = process.env.ATLAS_OUT_DIR || 'dist';
-const base = (process.env.ATLAS_BASE_PATH || '/').replace(/\/?$/, '/');
-if (!base.startsWith('/') || base.includes('..') || !/^\/[a-zA-Z0-9/_-]*$/.test(base))
-  throw new Error('ATLAS_BASE_PATH must be an absolute URL path with a trailing slash.');
-const html = await readFile(join(outDir, 'index.html'), 'utf8');
-const buildEnv = loadEnv('production', process.cwd(), 'VITE_');
-const measurementId = process.env.VITE_ANALYTICS_ID ?? buildEnv.VITE_ANALYTICS_ID ?? '';
+const outDir = process.env.ATLAS_OUT_DIR || "dist";
+const base = (process.env.ATLAS_BASE_PATH || "/").replace(/\/?$/, "/");
+if (
+  !base.startsWith("/") ||
+  base.includes("..") ||
+  !/^\/[a-zA-Z0-9/_-]*$/.test(base)
+)
+  throw new Error(
+    "ATLAS_BASE_PATH must be an absolute URL path with a trailing slash.",
+  );
+let html = await readFile(join(outDir, "index.html"), "utf8");
+const buildEnv = loadEnv("production", process.cwd(), "VITE_");
+const measurementId =
+  process.env.VITE_ANALYTICS_ID ?? buildEnv.VITE_ANALYTICS_ID ?? "";
 function httpsOrigin(value) {
-  if (typeof value !== 'string') return '';
+  if (typeof value !== "string") return "";
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' &&
+    return url.protocol === "https:" &&
       !url.username &&
       !url.password &&
-      url.origin === value.replace(/\/$/, '')
+      url.origin === value.replace(/\/$/, "")
       ? url.origin
-      : '';
+      : "";
   } catch {
-    return '';
+    return "";
   }
 }
 const analyticsOrigin = httpsOrigin(
   process.env.VITE_ANALYTICS_ORIGIN ?? buildEnv.VITE_ANALYTICS_ORIGIN,
 );
 const parentOrigin = httpsOrigin(
-  process.env.VITE_ANALYTICS_PARENT_ORIGIN ?? buildEnv.VITE_ANALYTICS_PARENT_ORIGIN,
+  process.env.VITE_ANALYTICS_PARENT_ORIGIN ??
+    buildEnv.VITE_ANALYTICS_PARENT_ORIGIN,
 );
 const validMeasurementId =
   /^G-[A-Z0-9]{6,20}$/.test(measurementId) &&
@@ -36,13 +45,13 @@ const validMeasurementId =
   parentOrigin &&
   analyticsOrigin !== parentOrigin
     ? measurementId
-    : '';
+    : "";
 await writeFile(
-  join(outDir, 'analytics.html'),
+  join(outDir, "analytics.html"),
   `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="referrer" content="no-referrer"><title>Atlas anonymous measurement</title><script defer src="${base}analytics-bootstrap.js"></script></head><body></body></html>`,
 );
 await writeFile(
-  join(outDir, 'analytics-bootstrap.js'),
+  join(outDir, "analytics-bootstrap.js"),
   `(function(){
   var id=${JSON.stringify(validMeasurementId)},expectedOrigin=${JSON.stringify(analyticsOrigin)},parentOrigin=${JSON.stringify(parentOrigin)},base=${JSON.stringify(base)};
   // Only the dedicated, different origin may run the tag, and only inside a frame.
@@ -73,31 +82,98 @@ await writeFile(
   send('atlas:analytics:ready');
 })();`,
 );
-const pages = ['about', 'documentation', 'credits', 'contributing', 'changelog', 'licenses'];
-const regions = [
-  'vice-city',
-  'leonida-keys',
-  'grassrivers',
-  'port-gellhorn',
-  'ambrosia',
-  'mount-kalaga-national-park',
+const pages = [
+  "about",
+  "documentation",
+  "credits",
+  "contributing",
+  "changelog",
+  "licenses",
 ];
-const routes = [
-  ...pages,
-  'gta6-leonida-atlas',
-  'gta6-leonida-atlas/app',
-  'tools/street-leonida',
-  ...pages.map((p) => `gta6-leonida-atlas/${p}`),
-  ...regions.flatMap((slug) => [
-    `gta6-leonida-atlas/app/place/${slug}`,
-    `gta6-leonida-atlas/app/viewpoint/${slug}-regional-entry`,
-  ]),
-];
-for (const route of routes) {
-  await mkdir(join(outDir, route), { recursive: true });
-  await writeFile(join(outDir, route, 'index.html'), html);
+const siteOrigin =
+  process.env.VITE_ATLAS_SITE_ORIGIN ?? buildEnv.VITE_ATLAS_SITE_ORIGIN ?? "";
+const template = html;
+function escapeHtml(value) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ],
+  );
 }
-const assets = (await readdir(join(outDir, 'assets')))
+function documentHtml({ metadata, markup }) {
+  const title = escapeHtml(metadata.title);
+  const description = escapeHtml(metadata.description);
+  const canonical = metadata.canonical && escapeHtml(metadata.canonical);
+  return template
+    .replace(/<title>.*?<\/title>/s, `<title>${title}</title>`)
+    .replace(
+      /<meta name="description"[^>]*>/,
+      `<meta name="description" content="${description}">`,
+    )
+    .replace(
+      "</head>",
+      `<meta name="robots" content="${metadata.robots}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${description}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:description" content="${description}">
+${
+  canonical
+    ? `<link rel="canonical" href="${canonical}">
+<meta property="og:url" content="${canonical}">`
+    : ""
+}
+</head>`,
+    )
+    .replace('<div id="root"></div>', `<div id="root">${markup}</div>`);
+}
+// Use the existing project components as the initial HTML; no second editorial copy.
+// The interactive app still mounts normally, including private account extensions.
+const renderer = await createServer({
+  root: fileURLToPath(new URL('..', import.meta.url)),
+  envDir: process.cwd(),
+  base,
+  optimizeDeps: { noDiscovery: true, include: [] },
+  server: { middlewareMode: true },
+  appType: "custom",
+});
+try {
+  const { renderStaticPage } = await renderer.ssrLoadModule(
+    "/src/features/project/static-page.tsx",
+  );
+  html = documentHtml(renderStaticPage("", base, siteOrigin));
+  await writeFile(join(outDir, "index.html"), html);
+  for (const page of pages) {
+    await mkdir(join(outDir, page), { recursive: true });
+    await writeFile(
+      join(outDir, page, "index.html"),
+      documentHtml(renderStaticPage(page, base, siteOrigin)),
+    );
+  }
+  const utility = renderStaticPage("", base, siteOrigin);
+  utility.metadata.robots = "noindex, follow";
+  await mkdir(join(outDir, "app"), { recursive: true });
+  await writeFile(join(outDir, "app/index.html"), documentHtml(utility));
+  await writeFile(
+    join(outDir, "404.html"),
+    documentHtml({
+      metadata: {
+        ...utility.metadata,
+        canonical: null,
+        title: "Atlas page not found",
+        description: "This Atlas address does not identify an available page.",
+      },
+      markup: `<main class="project-page"><div class="project-layout"><article class="project-article"><h1>Atlas page not found</h1><p><a href="${base}">Return to the Leonida Atlas</a></p></article></div></main>`,
+    }).replace(/<script type="module"[^>]*><\/script>/g, ""),
+  );
+} finally {
+  await renderer.close();
+}
+const assets = (await readdir(join(outDir, "assets")))
   .filter((name) => /\.(?:js|css|woff2)$/.test(name))
   .map((name) => `${base}assets/${name}`);
 const precache = [
@@ -108,12 +184,15 @@ const precache = [
   `${base}assets/gta6-leonida-atlas/basemap.svg`,
   `${base}assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json`,
 ];
-const contentHash = createHash('sha256').update(html + JSON.stringify(precache));
+const contentHash = createHash("sha256").update(
+  html + JSON.stringify(precache),
+);
 for (const url of precache) {
-  if (url !== base) contentHash.update(await readFile(join(outDir, url.slice(base.length))));
+  if (url !== base)
+    contentHash.update(await readFile(join(outDir, url.slice(base.length))));
 }
-const revision = contentHash.digest('hex').slice(0, 12);
-const prefix = `atlas-${createHash('sha256').update(base).digest('hex').slice(0, 8)}-`;
+const revision = contentHash.digest("hex").slice(0, 12);
+const prefix = `atlas-${createHash("sha256").update(base).digest("hex").slice(0, 8)}-`;
 const worker = `// Generated per release; never cache external analytics, APIs, or private data.
 const CACHE=${JSON.stringify(prefix + revision)}, PREFIX=${JSON.stringify(prefix)}, BASE=${JSON.stringify(base)};
 const CORE=${JSON.stringify(precache)};
@@ -128,7 +207,7 @@ self.addEventListener('fetch',event=>{
   const asset=CORE.includes(url.pathname)||publicOptional;
   if(request.headers.has('authorization')||(!navigation&&url.search))return;
   if(!navigation&&!asset)return;
-  if(navigation){event.respondWith(fetch(request).then(response=>response.ok?response:caches.match(BASE+'index.html')).catch(()=>caches.match(BASE+'index.html')));return;}
+  if(navigation){event.respondWith(fetch(request).catch(()=>caches.match(BASE+'index.html')));return;}
   event.respondWith(caches.open(CACHE).then(async cache=>{
     const cached=await cache.match(request);if(cached)return cached;
     const response=await fetch(request);
@@ -144,12 +223,12 @@ self.addEventListener('fetch',event=>{
   }).catch(()=>fetch(request)));
 });
 `;
-await writeFile(join(outDir, 'sw.js'), worker);
-await writeFile(join(outDir, '_redirects'), `${base}* ${base}index.html 200\n`);
+await writeFile(join(outDir, "sw.js"), worker);
+await writeFile(join(outDir, "_redirects"), `${base}* ${base}index.html 200\n`);
 await writeFile(
-  join(outDir, '_headers'),
+  join(outDir, "_headers"),
   `${base}*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n${base}sw.js\n  Cache-Control: no-cache\n`,
 );
 console.log(
-  `Static routes: ${routes.length}; offline core: ${precache.length} files; base: ${base}`,
+  `Static routes: ${pages.length + 2}; offline core: ${precache.length} files; base: ${base}`,
 );

@@ -9,6 +9,7 @@ import { AccountExtension } from './capabilities/AccountExtension';
 import { initializeAnalytics } from './app/analytics';
 import { AnalyticsConsent } from './app/AnalyticsConsent';
 import './app/atlas.css';
+import './features/project/project.css';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };

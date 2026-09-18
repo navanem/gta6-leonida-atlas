@@ -10,6 +10,7 @@ import {
 import { projectPath, publicPath } from '../explorer/public-path';
 import { LEONIDA_ATLAS_RELEASES } from '../street-leonida/releases';
 import { AnalyticsPreferences } from '../../app/AnalyticsConsent';
+import { ATLAS_PROJECT_META } from '../../app/seo';
 import './project.css';
 
 export interface ProjectPageProps {
@@ -429,7 +430,7 @@ export default function ProjectPage({ page, onClose }: ProjectPageProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const selected = content[page] ? page : 'about';
   const Content = content[selected]!;
-  const title = pages.find(([key]) => key === selected)![1];
+  const title = ATLAS_PROJECT_META[selected]!.heading;
   useEffect(() => {
     const previousFocus = document.activeElement;
     const fragment = window.location.hash.slice(1);

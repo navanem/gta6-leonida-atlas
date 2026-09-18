@@ -56,7 +56,7 @@ function finalize(directory: string, id = '') {
       VITE_ANALYTICS_PARENT_ORIGIN: origin,
     },
     stdio: 'pipe',
-    timeout: 15_000,
+    timeout: 30_000,
   });
 }
 
@@ -67,7 +67,7 @@ interface FetchEvent {
 
 function workerHarness(
   source: string,
-  options: { cacheControl?: string; quotaFailure?: boolean; cacheOpenFailure?: boolean } = {},
+  options: { cacheControl?: string; quotaFailure?: boolean; cacheOpenFailure?: boolean; responseStatus?: number } = {},
 ) {
   const handlers = new Map<string, (event: FetchEvent) => void>();
   const fetches: string[] = [];
@@ -97,6 +97,7 @@ function workerHarness(
     fetch: async (request: Request) => {
       fetches.push(request.url);
       const response = new Response('Public network content', {
+        status: options.responseStatus ?? 200,
         headers: { 'cache-control': options.cacheControl ?? 'public, max-age=3600' },
       });
       Object.defineProperty(response, 'type', { value: 'basic' });
@@ -108,9 +109,10 @@ function workerHarness(
     fetches,
     cachedUrls,
     openedCaches,
-    dispatch(path: string, headers?: Record<string, string>) {
+    dispatch(path: string, headers?: Record<string, string>, navigation = false) {
       let response: Promise<Response | undefined> | undefined;
       const request = new Request(new URL(path, origin), { headers });
+      if (navigation) Object.defineProperty(request, 'mode', { value: 'navigate' });
       handlers.get('fetch')!({
         request,
         respondWith: (value) => {
@@ -138,7 +140,7 @@ describe('generated service worker privacy and availability', () => {
     const directory = await fixture();
     finalize(directory);
     worker = await readFile(join(directory, 'dist/sw.js'), 'utf8');
-  });
+  }, 30_000);
 
   it('leaves analytics, authenticated requests, query URLs and unlisted resources outside caching', () => {
     const harness = workerHarness(worker);
@@ -179,6 +181,13 @@ describe('generated service worker privacy and availability', () => {
     },
   );
 
+  it.each([404, 503])('preserves HTTP %s navigation responses instead of substituting the map shell', async (responseStatus) => {
+    const harness = workerHarness(worker, { responseStatus });
+    const response = await harness.dispatch('/atlas/missing-resource', undefined, true);
+    expect(response?.status).toBe(responseStatus);
+    expect(harness.cachedUrls).toEqual([]);
+  });
+
   it('caches public assets and changes the cache when only basemap bytes change', async () => {
     const directory = await fixture();
     finalize(directory);
@@ -193,7 +202,7 @@ describe('generated service worker privacy and availability', () => {
     const after = workerHarness(await readFile(join(directory, 'dist/sw.js'), 'utf8'));
     await after.dispatch('/atlas/assets/gta6-leonida-atlas/basemap.svg');
     expect(after.openedCaches[0]).not.toBe(before.openedCaches[0]);
-  });
+  }, 60_000);
 });
 
 function runBootstrap(
@@ -278,12 +287,27 @@ function runBootstrap(
 }
 
 describe('optional analytics separate-origin isolation', () => {
-  it('waits for exact consent from the verified parent before loading any Google script', async () => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
+  let analyticsBootstrap: string;
+  let invalidAnalyticsBootstrap: string;
+
+  beforeAll(async () => {
+    const validDirectory = await fixture();
+    finalize(validDirectory, testId);
+    analyticsBootstrap = await readFile(
+      join(validDirectory, 'dist/analytics-bootstrap.js'),
+      'utf8',
     );
+
+    const invalidDirectory = await fixture();
+    finalize(invalidDirectory, 'invalid<script>');
+    invalidAnalyticsBootstrap = await readFile(
+      join(invalidDirectory, 'dist/analytics-bootstrap.js'),
+      'utf8',
+    );
+  }, 60_000);
+
+  it('waits for exact consent from the verified parent before loading any Google script', async () => {
+    const bootstrap = runBootstrap(analyticsBootstrap);
     expect(bootstrap.messages).toEqual([
       { message: { type: 'atlas:analytics:ready' }, target: origin },
     ]);
@@ -308,12 +332,7 @@ describe('optional analytics separate-origin isolation', () => {
     );
   });
   it('uses normal scoped SDK cookies and sanitized page locations without fabricated client/session IDs', async () => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
-      { configure: true },
-    );
+    const bootstrap = runBootstrap(analyticsBootstrap, { configure: true });
     const config = bootstrap.commands().find((command) => command[0] === 'config')?.[2] as Record<
       string,
       unknown
@@ -352,11 +371,7 @@ describe('optional analytics separate-origin isolation', () => {
     expect(bootstrap.document.body.style).toEqual({ minHeight: '10000px' });
   });
   it('withdraws consent without loading Google and clears only its namespaced host cookies', async () => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
-    );
+    const bootstrap = runBootstrap(analyticsBootstrap);
     bootstrap.dispatch({ type: 'atlas:analytics:revoke' });
     expect(bootstrap.host[`ga-disable-${testId}`]).toBe(true);
     expect(bootstrap.cookieWrites).toEqual([
@@ -380,23 +395,12 @@ describe('optional analytics separate-origin isolation', () => {
       locationOrigin: 'https://attacker.example',
     },
   ])('fails closed in a $name', async (options) => {
-    const directory = await fixture();
-    finalize(directory, testId);
-    const bootstrap = runBootstrap(
-      await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'),
-      { ...options, configure: true },
-    );
+    const bootstrap = runBootstrap(analyticsBootstrap, { ...options, configure: true });
     expect(bootstrap.messages).toEqual([]);
     expect(bootstrap.externalScripts).toEqual([]);
     expect(bootstrap.commands()).toEqual([]);
   });
   it('emits no enabled tag for an invalid measurement ID', async () => {
-    const directory = await fixture();
-    finalize(directory, 'invalid<script>');
-    expect(
-      runBootstrap(await readFile(join(directory, 'dist/analytics-bootstrap.js'), 'utf8'), {
-        configure: true,
-      }).commands(),
-    ).toEqual([]);
+    expect(runBootstrap(invalidAnalyticsBootstrap, { configure: true }).commands()).toEqual([]);
   });
 });

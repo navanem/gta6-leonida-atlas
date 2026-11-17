@@ -6,8 +6,8 @@ GTA6 Leonida Atlas is currently pre-1.0. Security fixes are applied to the lates
 
 | Version    | Supported |
 | ---------- | --------- |
-| `v0.6.x`   | Yes       |
-| `< v0.6.0` | No        |
+| `v0.8.x`   | Yes       |
+| `< v0.8.0` | No        |
 
 ## Reporting a vulnerability
 
@@ -47,4 +47,4 @@ Security fixes to original project code are published under `AGPL-3.0-only`. Thi
 
 The public build includes no account backend, sessions, private sync endpoints, server credentials or production user data. Local IndexedDB data is never committed. Backups are private user files and must stay outside Git. Keep `.env.local`, deployment keys and exports ignored.
 
-Optional Analytics uses an opaque sandbox with no access to the application DOM, IndexedDB or query strings; instance configuration stays outside tracked source. Private auth/sync implementations belong in a separate private package/service with server-side access controls.
+Optional Analytics uses a sandboxed frame on a distinct, allowed HTTPS origin with no access to the application DOM, IndexedDB or query strings; instance configuration stays outside tracked source. Private auth/sync implementations belong in a separate private package/service with server-side access controls.

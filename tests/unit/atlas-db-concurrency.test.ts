@@ -106,9 +106,28 @@ describe('edits from independent Atlas tabs', () => {
     expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.find(result => result.status === 'rejected')).toMatchObject({ reason: { name: 'ConflictError' } });
     expect((await first.load()).markers[0]!.updatedAt > original.updatedAt).toBe(true);
-    await second.deleteMarker(original.id);
+    await second.deleteMarker(original.id, (await second.load()).markers[0]!.updatedAt, null);
     await expect(first.saveMarker(original, original.updatedAt)).rejects.toMatchObject({ name: 'ConflictError' });
     expect((await first.load()).markers).toEqual([]);
+  });
+
+  it('does not delete a marker or note from a stale confirmation', async () => {
+    const original = marker();
+    await first.saveMarker(original, null);
+    await second.saveMarker({ ...original, title: 'New place' }, original.updatedAt);
+    await expect(first.deleteMarker(original.id, original.updatedAt, null)).rejects.toMatchObject({
+      name: 'ConflictError',
+    });
+    const revision = (await first.load()).markers[0]!.updatedAt;
+    await second.saveNote(original.id, 'New note');
+    await expect(first.deleteMarker(original.id, revision, null)).rejects.toMatchObject({
+      name: 'ConflictError',
+    });
+    const snapshot = await first.load();
+    expect(snapshot.markers[0]?.title).toBe('New place');
+    expect(snapshot.notes[0]?.text).toBe('New note');
+    await first.deleteMarker(original.id, revision, snapshot.notes[0]!.updatedAt);
+    expect((await second.load()).markers).toEqual([]);
   });
 
   it('preserves an imported newer note against an older open draft', async () => {

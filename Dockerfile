@@ -15,8 +15,9 @@ ENV VITE_ANALYTICS_ORIGIN=$VITE_ANALYTICS_ORIGIN
 ENV VITE_ANALYTICS_PARENT_ORIGIN=$VITE_ANALYTICS_PARENT_ORIGIN
 ENV VITE_ATLAS_SITE_ORIGIN=$VITE_ATLAS_SITE_ORIGIN
 ENV ATLAS_BASE_PATH=$ATLAS_BASE_PATH
-RUN pnpm build
+RUN ATLAS_NGINX_CSP_FILE=/tmp/atlas-csp.conf pnpm build
 FROM nginx:alpine
+COPY --from=build /tmp/atlas-csp.conf /etc/nginx/conf.d/00-atlas-csp.conf
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

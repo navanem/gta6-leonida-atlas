@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Info, MapPinPlus, Menu, X } from 'lucide-react';
 import { loadCatalogue, markerToPlace } from '../data/catalogue';
 import { filterPlaces } from '../domain/filter';
@@ -36,6 +36,7 @@ if (!atlasRegistry.sources.has('public'))
 
 export default function App() {
   const [route, setRoute] = useState(() => resolveRoute(location.pathname, location.search));
+  const appliedPlaceRoute = useRef<typeof route>(null);
   useEffect(() => { updateAtlasHead(location.pathname, location.search); }, [route]);
   const places = useDomainStore((s) => s.places);
   const status = useDomainStore((s) => s.status);
@@ -121,7 +122,6 @@ export default function App() {
           .getState()
           .fail('The public catalogue could not be loaded. Reload to retry.'),
       );
-    if (window.innerWidth < 800) useUiStore.getState().setSidebar(false);
     const network = (event: Event) =>
       usePersistenceStore.setState({ offline: event.type === 'offline' });
     const pop = () => setRoute(resolveRoute(location.pathname, location.search));
@@ -171,11 +171,12 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    if (route.placeId && status === 'ready') {
-      const place = allPlaces.find((p) => p.id === route.placeId);
-      if (place) useMapStore.getState().select(place);
-    }
-  }, [route.placeId, status, allPlaces]);
+    if (!route.placeId || status !== 'ready' || appliedPlaceRoute.current === route) return;
+    const place = allPlaces.find((p) => p.id === route.placeId);
+    if (!place) return;
+    appliedPlaceRoute.current = route;
+    useMapStore.getState().select(place);
+  }, [route, status, allPlaces]);
   useEffect(() => {
     document.documentElement.dataset.reducedMotion = String(preferences.reducedMotion);
   }, [preferences.reducedMotion]);

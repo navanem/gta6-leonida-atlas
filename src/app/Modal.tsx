@@ -22,7 +22,12 @@ export function Modal({
     };
   }, []);
   return (
-    <dialog ref={ref} className="atlas-dialog" aria-label={title} onCancel={onClose}>
+    <dialog ref={ref} className="atlas-dialog" aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
       <header className="panel-heading">
         <h2>{title}</h2>
         <button className="icon-button" aria-label="Close dialog" onClick={onClose}>

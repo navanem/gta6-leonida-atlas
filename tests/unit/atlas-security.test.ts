@@ -32,8 +32,9 @@ async function fixture() {
     'favicon.svg': '<svg/>',
     'assets/app-test.js': 'console.log("public app")',
     'assets/app-test.css': 'body{color:black}',
+    'assets/walk-world-test.js': 'console.log("optional 3D")',
     'assets/gta6-leonida-atlas/basemap.svg': '<svg><title>Original</title></svg>',
-    'assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json': '{"landmarks":[]}',
+    'assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json': '{"landmarks":[]}',
   };
   for (const [path, contents] of Object.entries(files)) {
     const destination = join(directory, 'dist', path);
@@ -186,6 +187,15 @@ describe('generated service worker privacy and availability', () => {
     const response = await harness.dispatch('/atlas/missing-resource', undefined, true);
     expect(response?.status).toBe(responseStatus);
     expect(harness.cachedUrls).toEqual([]);
+  });
+
+  it('caches the optional 3D script only after the first request', async () => {
+    const harness = workerHarness(worker);
+    expect(worker.split('\n').find((line) => line.startsWith('const CORE='))).not.toContain(
+      '/atlas/assets/walk-world-test.js',
+    );
+    await harness.dispatch('/atlas/assets/walk-world-test.js');
+    expect(harness.cachedUrls).toEqual([origin + '/atlas/assets/walk-world-test.js']);
   });
 
   it('caches public assets and changes the cache when only basemap bytes change', async () => {

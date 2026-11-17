@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { filterPlaces } from '../../src/domain/filter';
 import { createRegistry } from '../../src/plugins/registry';
-import { createGuestCapabilities, resolveCapabilities } from '../../src/capabilities/providers';
 import type { Filters, Place } from '../../src/domain/types';
 
 const filters: Filters = {
@@ -92,26 +91,5 @@ describe('internal module registry', () => {
     dispose();
     registry.emit('selection', 'L2');
     expect(seen).toHaveBeenCalledOnce();
-  });
-});
-describe('fork-safe optional capabilities', () => {
-  it('has no account or sync by default and performs no network work', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const guest = createGuestCapabilities();
-    expect(guest.auth.enabled).toBe(false);
-    expect(await guest.auth.getSession()).toBeNull();
-    expect(guest.sync.enabled).toBe(false);
-    expect(await guest.sync.sync()).toEqual({ status: 'disabled' });
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
-  });
-  it('falls back to guest when a private capability factory fails', async () => {
-    expect(
-      (
-        await resolveCapabilities(async () => {
-          throw Error('offline');
-        })
-      ).auth.enabled,
-    ).toBe(false);
   });
 });

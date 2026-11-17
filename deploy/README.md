@@ -23,4 +23,16 @@ Only the configured path is routed to Atlas. The container joins the shared prox
 
 For rollback, keep the previous image tag before publishing and recreate this service with that image. When replacing a route previously handled by another service, stopping only `leonida-atlas-web` restores the lower-priority existing router.
 
+### Optional analytics
+
+Build with the measurement ID, the exact HTTPS application origin and a
+different HTTPS origin for the measurement helper. The image grants the helper
+origin permission to load in the application and limits embedding of
+`analytics.html` to the configured application origin. Route the helper
+hostname only to `analytics.html` and `analytics-bootstrap.js` under the Atlas
+prefix. If the proxy overrides CSP, preserve these two exact origin rules.
+Check the response headers on both hosts and verify that measurement starts
+only after consent. Keep the optional settings empty for a public fork with
+analytics disabled.
+
 GitHub release publication uses `.github/workflows/release.yml`; instance environment files and compiled Analytics configuration are excluded from the source repository.

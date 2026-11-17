@@ -273,11 +273,17 @@ export function Sidebar({ places }: { places: Place[] }) {
         <div ref={setAccountEntryTarget} data-atlas-account-slot />
         <Status />
         <div className="button-row">
-          <button className="button" onClick={() => useUiStore.getState().setDialog('settings')}>
+          <button className="button" onClick={(event) => {
+              event.currentTarget.focus();
+              useUiStore.getState().setDialog('settings');
+            }}>
             <Settings size={17} />
             Settings
           </button>
-          <button className="button" onClick={() => useUiStore.getState().setDialog('backup')}>
+          <button className="button" onClick={(event) => {
+              event.currentTarget.focus();
+              useUiStore.getState().setDialog('backup');
+            }}>
             <Database size={17} />
             Backup
           </button>

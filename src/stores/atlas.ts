@@ -79,7 +79,7 @@ export const useUiStore = create<{
 }>((set) => ({
   filters: DEFAULT_FILTERS,
   tab: 'explore',
-  sidebarOpen: true,
+  sidebarOpen: typeof window === 'undefined' || window.innerWidth >= 800,
   dialog: null,
   editorOpen: false,
   setFilters: (filters) => set((state) => ({ filters: { ...state.filters, ...filters } })),

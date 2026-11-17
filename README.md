@@ -17,7 +17,7 @@
   <img src="docs/screenshots/leonida-atlas-overview.webp" width="100%" alt="Leonida Atlas showing the full community map, search tools and clustered places">
 </a>
 
-<p><em>2,204 searchable places. One evolving community map. Your discoveries stay yours.</em></p>
+<p><em>3,437 searchable places. One evolving community map. Your discoveries stay yours.</em></p>
 
 </div>
 
@@ -32,7 +32,7 @@ Leonida Atlas turns a large community reconstruction into a fast, searchable map
 
 | Discover                                                        | Personalize                                              | Explore                                                                |
 | --------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Search 2,204 public places and six major regions.               | Save favorites, collections, notes and personal markers. | Switch from the 2D atlas to an approximate 3D reconstruction.          |
+| Search 3,437 public places and six major regions.               | Save favorites, collections, notes and personal markers. | Switch from the 2D atlas to an approximate 3D reconstruction.          |
 | Filter landmarks, nature, transport, businesses and evidence.   | Export and restore portable, validated backups.          | Use desktop, touch and keyboard navigation.                            |
 | Keep uncertain locations visible without inventing coordinates. | Store rich personal data locally in IndexedDB.           | Reopen the installed experience offline after its first complete load. |
 
@@ -42,13 +42,13 @@ Leonida Atlas turns a large community reconstruction into a fast, searchable map
 
 Select a region, landmark or cluster to reveal its context, source and approximate game coordinates. Add favorites, write private notes and organize places without leaving the map.
 
-[![Vice City place details in Leonida Atlas](docs/screenshots/leonida-atlas-place-details.webp)](https://gta6state.com/gta6-leonida-atlas/?place=region%3Avice-city)
+[![Vice City place details in Leonida Atlas](docs/screenshots/leonida-atlas-place-details.webp)](https://atlas.zonepedia.com/?place=region%3Avice-city)
 
 ### Walk through the community reconstruction
 
 The optional 3D explorer preserves the project's existing reconstructed world. Travel between regions, walk or run through the scene and return to the atlas at any time.
 
-[![Leonida Atlas 3D explorer in Vice City](docs/screenshots/leonida-atlas-3d-explorer.webp)](https://gta6state.com/gta6-leonida-atlas/?view=3d)
+[![Leonida Atlas 3D explorer in Vice City](docs/screenshots/leonida-atlas-3d-explorer.webp)](https://atlas.zonepedia.com/?view=3d)
 
 <div align="center">
 
@@ -56,7 +56,7 @@ The optional 3D explorer preserves the project's existing reconstructed world. T
 
 <a href="https://gta6state.com/gta6-leonida-atlas/"><img src="https://img.shields.io/badge/OPEN_THE_LIVE_ATLAS-FF4F91?style=for-the-badge&logo=googlemaps&logoColor=white" alt="Open the live Leonida Atlas"></a>
 
-Current release: **v0.8.0** · [Release notes](RELEASES.md) · [All GitHub releases](https://github.com/navanem/gta6-leonida-atlas/releases)
+Current release: **v0.8.2** · [Release notes](RELEASES.md) · [All GitHub releases](https://github.com/navanem/gta6-leonida-atlas/releases)
 
 </div>
 
@@ -169,7 +169,7 @@ Read the [production deployment guide](deploy/README.md) for hostname, path and 
 
 ## Data, evidence and accuracy
 
-The pinned public catalogue is derived from **GTADB / Map GTA contributors** under **CC BY 4.0**. It currently contains 2,198 GTADB records—2,091 positioned and 107 deliberately unpositioned—plus six regional entries.
+The pinned public catalogue is derived from **GTADB / Map GTA contributors** under **CC BY 4.0**. It currently contains 3,431 GTADB records—3,340 positioned and 91 without coordinates—plus six regional entries.
 
 Stable source IDs and evidence are preserved. Approximate placements are labeled as approximate, and missing geography stays unknown. See the [methodology](docs/METHODOLOGY.md) and [third-party notices](THIRD_PARTY_LICENSES.md).
 

@@ -85,7 +85,7 @@ async function exportBackup(page: Page, testInfo: TestInfo, label: string): Prom
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export backup', exact: true }).click();
   const download = await downloading;
-  const path = `/tmp/atlas-qa-backup-${testInfo.project.name}-${label}.json`;
+  const path = testInfo.outputPath(`backup-${label}.json`);
   await download.saveAs(path);
   return JSON.parse(await readFile(path, 'utf8')) as Backup;
 }
@@ -104,7 +104,7 @@ test.afterEach(async ({ page }, testInfo) => {
   if (testInfo.status !== testInfo.expectedStatus) {
     const name = testInfo.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 90);
     await page.screenshot({
-      path: `/tmp/atlas-qa-${testInfo.project.name}-${name}-failed.png`,
+      path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-${name}-failed.png`),
       fullPage: true,
     });
   }
@@ -130,7 +130,7 @@ test('the map opens without an account, filters public evidence, and toggles vis
   });
   await openAtlas(page);
   await page.screenshot({
-    path: `/tmp/atlas-qa-${testInfo.project.name}-initial-map.png`,
+    path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-initial-map.png`),
     fullPage: true,
   });
   await openSidebar(page);
@@ -161,7 +161,7 @@ test('the map opens without an account, filters public evidence, and toggles vis
   await regionLayer.check();
   await expect(page.locator('.atlas-map-caption')).toHaveText('1 places in view');
   await page.screenshot({
-    path: `/tmp/atlas-qa-${testInfo.project.name}-layers.png`,
+    path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-layers.png`),
     fullPage: true,
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
@@ -211,7 +211,7 @@ test('a renamed collection, favorite and note survive a browser reload', async (
     details(page).getByRole('button', { name: 'Remove from Sunset route', exact: true }),
   ).toBeVisible();
   await page.screenshot({
-    path: `/tmp/atlas-qa-${testInfo.project.name}-saved-place.png`,
+    path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-saved-place.png`),
     fullPage: true,
   });
 });
@@ -327,7 +327,7 @@ test('backup validation and preview preserve current data until a confirmed merg
     'Keep this marker',
   ]);
   await page.screenshot({
-    path: `/tmp/atlas-qa-${testInfo.project.name}-backup.png`,
+    path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-backup.png`),
     fullPage: true,
   });
 });
@@ -401,7 +401,7 @@ test('the installed app reloads offline with its saved preferences and personal 
     ).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-reduced-motion', 'true');
     await page.screenshot({
-      path: `/tmp/atlas-qa-${testInfo.project.name}-offline.png`,
+      path: testInfo.outputPath(`atlas-qa-${testInfo.project.name}-offline.png`),
       fullPage: true,
     });
     await page.getByRole('button', { name: 'Close place details', exact: true }).click();

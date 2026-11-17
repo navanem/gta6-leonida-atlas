@@ -84,6 +84,19 @@ function About() {
           the same community coordinate frame.
         </p>
       </Section>
+      <Section title="Where Leonida Atlas is used" id="deployments">
+        <ul>
+          <li>
+            <a href="https://gta6state.com/">GTA6State</a> hosts the{' '}
+            <a href="https://gta6state.com/gta6-leonida-atlas/">interactive atlas</a> alongside its
+            GTA VI guides and location database.
+          </li>
+          <li>
+            <a href="https://zonepedia.com/">Zonepedia</a> hosts a{' '}
+            <a href="https://atlas.zonepedia.com/">standalone version of the atlas</a>.
+          </li>
+        </ul>
+      </Section>
       <Section title="Release history" id="release-history">
         <p>Every release since v0.5.0, from newest to oldest.</p>
         <ol className="project-release-history">

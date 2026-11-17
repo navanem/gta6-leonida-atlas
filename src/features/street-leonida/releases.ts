@@ -11,6 +11,31 @@ export interface LeonidaAtlasRelease {
 /** Retained public history starts at v0.5.0; the newest release stays first. */
 export const LEONIDA_ATLAS_RELEASES: readonly LeonidaAtlasRelease[] = [
   {
+    version: 'v0.8.2',
+    date: '2026-11-17',
+    title: 'Updated landmarks and safer local editing',
+    summary:
+      '3,431 refreshed community landmarks, safer marker deletion, and more reliable mobile navigation.',
+    status: 'public',
+    highlights: [
+      'The November 17 GTADB catalogue keeps all previous IDs and adds 1,233 records. Positions remain approximate.',
+      'Marker deletion checks the marker and its note for changes before committing.',
+      'The 3D renderer downloads when you open it. The map and local library still reopen offline.',
+    ],
+    verification: [
+      'The release workflow checks the production build and browser flows in Chromium and WebKit.',
+    ],
+  },
+  {
+    version: 'v0.8.1',
+    date: '2026-09-18',
+    title: 'Crawlable project pages and dependency refresh',
+    summary: 'Clean project URLs, distinct metadata and a TypeScript 6 migration.',
+    status: 'public',
+    highlights: ['Project pages include readable static content and dedicated page metadata.'],
+    verification: ['The public source and tag are available on GitHub.'],
+  },
+  {
     version: 'v0.8.0',
     date: '2026-09-06',
     title: 'Deeper streets and researched regional scenes',

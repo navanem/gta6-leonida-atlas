@@ -55,7 +55,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
         <h3>Storage on this device</h3>
         <p className="help-text">
           Your browser stores personal data in IndexedDB. Backups protect your work if browser data
-          is cleared. The map and app can reopen offline after the first complete load; 3D textures
+          is cleared. The map and app can reopen offline after the first complete load; The 3D view and its textures
           are cached as you explore.
         </p>
         <button

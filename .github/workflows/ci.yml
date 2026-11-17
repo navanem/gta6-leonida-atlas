@@ -43,3 +43,7 @@ jobs:
         run: pnpm test:unit
       - name: Build
         run: pnpm build
+      - name: Install browser test engines
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Run browser tests
+        run: pnpm test:e2e

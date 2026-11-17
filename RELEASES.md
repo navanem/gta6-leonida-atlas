@@ -2,6 +2,26 @@
 
 Release history, newest first.
 
+## v0.8.2 — 2026-11-17
+
+### Map data and local editing
+
+- Refresh the GTADB landmark catalogue to the November 17 revision. The map includes 3,431 community records and six regions. All 2,198 previous landmark identifiers remain available to local favorites, collections and notes.
+- Verify marker and note revisions before deleting either record, so an older tab cannot erase newer work.
+- Keep dismissed place details closed during background data refreshes. Stabilize the mobile sidebar and restore keyboard focus after closing settings.
+
+### Distribution and performance
+
+- Point the README's place and 3D examples at the interactive atlas. Add Chromium and WebKit to the pull request and release checks.
+- Cache the optional 3D code on first use. The map and personal library still reopen offline after a complete initial load.
+- Remove unused analytics event and guest provider code. The private account extension contract is unchanged.
+- Configure the Docker analytics helper with exact HTTPS origins and update the development-only minimatch dependency.
+
+## v0.8.1 — 2026-09-18
+
+- Publish crawlable project pages, clean project URLs and distinct metadata.
+- Refresh dependencies and migrate to TypeScript 6.
+
 ## v0.8.0 — 2026-09-06
 
 **Released: deeper streets and researched regional scenes.**

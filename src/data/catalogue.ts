@@ -115,7 +115,7 @@ export function loadCatalogue(): Promise<Place[]> {
   if (!catalogueRequest) {
     const base = import.meta.env.BASE_URL ?? '/';
     catalogueRequest = fetch(
-      `${base.endsWith('/') ? base : `${base}/`}assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json`,
+      `${base.endsWith('/') ? base : `${base}/`}assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json`,
     )
       .then(async (response) => {
         if (!response.ok)

@@ -24,6 +24,9 @@ export default function MarkerEditor({
   const [x, setX] = useState(String(position?.x ?? marker?.position.x ?? 0));
   const [y, setY] = useState(String(position?.y ?? marker?.position.y ?? 0));
   const [error, setError] = useState('');
+  const [noteUpdatedAt] = useState(
+    () => useUserStore.getState().notes.find((note) => note.placeId === selectedId)?.updatedAt ?? null,
+  );
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   async function save() {
@@ -76,13 +79,28 @@ export default function MarkerEditor({
       );
   }
   async function remove() {
-    if (!marker) return;
+    if (!marker || !deleting) return;
     setBusy(true);
-    const ok = await saveLocal(() => atlasRepository.deleteMarker(marker.id));
+    let conflict = false;
+    const ok = await saveLocal(async () => {
+      try {
+        await atlasRepository.deleteMarker(marker.id, marker.updatedAt, noteUpdatedAt);
+      } catch (error) {
+        conflict = error instanceof ConflictError;
+        throw error;
+      }
+    });
     setBusy(false);
     if (ok) {
       useMapStore.getState().select(null);
       onClose();
+    } else {
+      setDeleting(false);
+      setError(
+        conflict
+          ? 'The marker or its note changed elsewhere. Close and reopen this marker before deleting.'
+          : 'Could not delete this marker. Check local storage and retry.',
+      );
     }
   }
   return (
@@ -184,7 +202,12 @@ export default function MarkerEditor({
           </button>
         </div>
         {marker && !deleting && (
-          <button type="button" className="text-button danger" onClick={() => setDeleting(true)}>
+          <button
+            type="button"
+            className="text-button danger"
+            disabled={busy}
+            onClick={() => setDeleting(true)}
+          >
             Delete marker
           </button>
         )}

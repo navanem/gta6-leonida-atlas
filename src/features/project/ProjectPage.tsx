@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import {
   GTADB_LICENSE_URL,
+  GTADB_BASEMAP_REVISION,
   GTADB_PINNED_DATA_URL,
   GTADB_PREFERRED_SOURCE,
   GTADB_REVISION,
@@ -217,10 +218,10 @@ function Credits() {
         </p>
         <p>
           The pinned revision is <code className="project-revision">{GTADB_REVISION}</code>. The
-          catalogue contains 2,198 records: 2,091 positioned records and 107 without coordinates.
+          catalogue contains 3,431 records: 3,340 positioned records and 91 without coordinates.
         </p>
         <p>
-          <a href={`${GTADB_SOURCE}/tree/${GTADB_REVISION}/maps`} target="_blank" rel="noreferrer">
+          <a href={`${GTADB_SOURCE}/tree/${GTADB_BASEMAP_REVISION}/maps`} target="_blank" rel="noreferrer">
             Pinned map source
           </a>{' '}
           ·{' '}

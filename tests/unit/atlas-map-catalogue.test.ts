@@ -2,15 +2,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { catalogueFromSnapshot, markerToPlace } from '../../src/data/catalogue';
 
-const snapshot = JSON.parse(readFileSync(new URL('../../public/assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json', import.meta.url), 'utf8'));
+const snapshot = JSON.parse(readFileSync(new URL('../../public/assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json', import.meta.url), 'utf8'));
 
 describe('Atlas searchable catalogue', () => {
-  it('retains all 2,198 community records and six regions, including 107 unpositioned records', () => {
+  it('retains all 3,431 community records and six regions, including 91 unpositioned records', () => {
     const places = catalogueFromSnapshot(snapshot);
-    expect(places).toHaveLength(2204);
-    expect(places.filter(p => p.position === null)).toHaveLength(107);
+    expect(places).toHaveLength(3437);
+    expect(places.filter(p => p.position === null)).toHaveLength(91);
     expect(places.filter(p => p.layerId === 'regions')).toHaveLength(6);
-    expect(new Set(places.map(p => p.id)).size).toBe(2204);
+    expect(new Set(places.map(p => p.id)).size).toBe(3437);
   });
   it('uses only source game coordinates and keeps approximate and uncertain evidence explicit', () => {
     const places = catalogueFromSnapshot(snapshot);

@@ -1,6 +1,6 @@
 import { publicPath } from '../explorer/public-path';
 import type { WalkPoint } from './walk-engine';
-import { GTADB_REVISION, GTADB_SOURCE } from './gtadb';
+import { GTADB_BASEMAP_REVISION, GTADB_REVISION, GTADB_SOURCE } from './gtadb';
 import {
   gtadbToWorld,
   worldToGtadb,
@@ -17,13 +17,13 @@ import {
 /** @deprecated Compatibility metadata; new code should consume the pinned GTADB snapshot. */
 export const STATE_OF_LEONIDA_COMMUNITY_MAP = {
   sourceUrl: GTADB_SOURCE,
-  localSource: 'gtadb-landmarks-7c3f8c2.json',
-  assetUrl: publicPath('assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json'),
+  localSource: 'gtadb-landmarks-5c1d69f.json',
+  assetUrl: publicPath('assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json'),
   version: GTADB_REVISION,
-  versionDate: '2026-09-04',
-  markerCount: 2198,
-  positionedMarkerCount: 2091,
-  unpositionedMarkerCount: 107,
+  versionDate: '2026-11-17',
+  markerCount: 3431,
+  positionedMarkerCount: 3340,
+  unpositionedMarkerCount: 91,
   status: 'community-estimate',
 } as const;
 
@@ -612,4 +612,4 @@ export function getLeonidaZoneProfile(position: WalkPoint): LeonidaZoneProfile {
   }).profile;
 }
 
-export const LEONIDA_ALIGNMENT_REVISION = `gtadb-${GTADB_REVISION.slice(0, 7)}-world-v1`;
+export const LEONIDA_ALIGNMENT_REVISION = `gtadb-${GTADB_BASEMAP_REVISION.slice(0, 7)}-world-v1`;

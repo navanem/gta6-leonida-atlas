@@ -200,21 +200,21 @@ describe('GTADB catalogue normalization', () => {
       GTADB_SOURCE: 'https://github.com/rolux/gtadb.org',
       GTADB_PREFERRED_SOURCE: 'https://map.gtadb.org',
       GTADB_PINNED_DATA_URL:
-        'https://github.com/rolux/gtadb.org/blob/7c3f8c295d64254e6b6d269b77c6f84fc4339f9c/map/data/6/landmarks.json',
-      GTADB_REVISION: '7c3f8c295d64254e6b6d269b77c6f84fc4339f9c',
+        'https://github.com/rolux/gtadb.org/blob/5c1d69ff864623d181da5457afaacd00b623e1a4/map/data/6/landmarks.json',
+      GTADB_REVISION: '5c1d69ff864623d181da5457afaacd00b623e1a4',
       GTADB_LICENSE: 'CC BY 4.0',
       GTADB_LICENSE_URL: 'https://creativecommons.org/licenses/by/4.0/',
       GTADB_PRESENTATION_NOTICE:
         'transformed presentation · deterministic, pixel-aligned transform · community placement APPROXIMATE · approximate visualization scale',
       GTADB_ATTRIBUTION:
-        'GTADB / Map GTA community reconstruction · preferred source https://map.gtadb.org · CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ · pinned revision 7c3f8c295d64254e6b6d269b77c6f84fc4339f9c · transformed presentation · deterministic, pixel-aligned transform · community placement APPROXIMATE · approximate visualization scale · not an official Rockstar map',
-      GTADB_SNAPSHOT_SHA256: 'dd70b15592ee1ef6c3bbd0ccfea0fe8eef3cb033284f89670be419172e26ab65',
+        'GTADB / Map GTA community reconstruction · preferred source https://map.gtadb.org · CC BY 4.0 https://creativecommons.org/licenses/by/4.0/ · pinned revision 5c1d69ff864623d181da5457afaacd00b623e1a4 · transformed presentation · deterministic, pixel-aligned transform · community placement APPROXIMATE · approximate visualization scale · not an official Rockstar map',
+      GTADB_SNAPSHOT_SHA256: '2209a4ff385815cad4d1f217248daaae3e29d029c34c137ce870eee1e8181083',
     });
   });
 
   it('ships the complete, attributed normalized snapshot (catches partial or unpinned sync output)', () => {
     const snapshotPath = new URL(
-      '../../public/assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json',
+      '../../public/assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json',
       import.meta.url,
     );
     const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8')) as {
@@ -234,29 +234,25 @@ describe('GTADB catalogue normalization', () => {
       attribution: GTADB_ATTRIBUTION,
     });
     expect(snapshot.counts).toEqual({
-      recordCount: 2_198,
-      positionedCount: 2_091,
-      unpositionedCount: 107,
-      knownNameCount: 540,
-      unknownNameCount: 1_658,
+      recordCount: 3_431,
+      positionedCount: 3_340,
+      unpositionedCount: 91,
+      knownNameCount: 948,
+      unknownNameCount: 2_483,
     });
-    expect(snapshot.landmarks).toHaveLength(2_198);
+    expect(snapshot.landmarks).toHaveLength(3_431);
 
     expect(
       snapshot.landmarks
         .filter(({ inGameAddress }) => !inGameAddress.trim())
         .map(({ id, confidence, evidence }) => ({ id, confidence, name: evidence.name })),
-    ).toEqual([
-      { id: 'L903', confidence: 'UNKNOWN', name: 'UNKNOWN' },
-      { id: 'L2187', confidence: 'UNKNOWN', name: 'UNKNOWN' },
-      { id: 'L2193', confidence: 'UNKNOWN', name: 'UNKNOWN' },
-    ]);
+    ).toEqual([]);
     expect(snapshot.landmarks.find(({ id }) => id === 'L1')).toMatchObject({
       confidence: 'UNKNOWN',
       evidence: {
         name: 'UNKNOWN',
         placement: 'APPROXIMATE',
-        tagSignals: { levelTags: ['L1'], unconfirmed: false, demolished: false },
+        tagSignals: { levelTags: [], unconfirmed: false, demolished: false },
       },
     });
     expect(snapshot.landmarks.find(({ id }) => id === 'L130')).toMatchObject({
@@ -306,7 +302,7 @@ describe('GTADB catalogue normalization', () => {
       )
       .digest('hex');
     expect(sourceValueDigest).toBe(
-      'b5b3558871e324826265a6f6d783ce3ce0af39ba15b580174c05c0ee5460a4a9',
+      '934abed19ca0883dcb2483a04c68af8924db5404858fde943d9c5b7f0e735aa3',
     );
   });
 });

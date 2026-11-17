@@ -46,6 +46,25 @@ const validMeasurementId =
   analyticsOrigin !== parentOrigin
     ? measurementId
     : "";
+if (process.env.ATLAS_NGINX_CSP_FILE) {
+  const originPattern = /^https:\/\/(?:[a-z0-9.-]+|\[[0-9a-f:]+\])(?::\d+)?$/;
+  const enabled = validMeasurementId && [analyticsOrigin, parentOrigin].every((value) =>
+    originPattern.test(value),
+  );
+  if (validMeasurementId && !enabled) throw new Error("Invalid nginx analytics hostname.");
+  const frameSources = enabled ? "'self' " + analyticsOrigin : "'self'";
+  const ancestors = enabled ? parentOrigin : "'none'";
+  await writeFile(
+    process.env.ATLAS_NGINX_CSP_FILE,
+    'map $uri $atlas_analytics_ancestors {\n' +
+      '  default "\'self\'";\n' +
+      '  /analytics.html "' + ancestors + '";\n' +
+      '}\nmap $uri $atlas_frame_sources {\n' +
+      '  default "' + frameSources + '";\n' +
+      '  /analytics.html "\'none\'";\n' +
+      '}\n',
+  );
+}
 await writeFile(
   join(outDir, "analytics.html"),
   `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="referrer" content="no-referrer"><title>Atlas anonymous measurement</title><script defer src="${base}analytics-bootstrap.js"></script></head><body></body></html>`,
@@ -176,18 +195,21 @@ try {
 const assets = (await readdir(join(outDir, "assets")))
   .filter((name) => /\.(?:js|css|woff2)$/.test(name))
   .map((name) => `${base}assets/${name}`);
+const threeDimensionalAssets = assets.filter((url) =>
+  /\/(?:ExplorerView|walk-[a-z-]+)-[^/]+\.(?:js|css)$/.test(url),
+);
 const precache = [
   base,
   `${base}index.html`,
   `${base}favicon.svg`,
-  ...assets,
+  ...assets.filter((url) => !threeDimensionalAssets.includes(url)),
   `${base}assets/gta6-leonida-atlas/basemap.svg`,
-  `${base}assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json`,
+  `${base}assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json`,
 ];
 const contentHash = createHash("sha256").update(
-  html + JSON.stringify(precache),
+  html + JSON.stringify([precache, threeDimensionalAssets]),
 );
-for (const url of precache) {
+for (const url of [...precache, ...threeDimensionalAssets]) {
   if (url !== base)
     contentHash.update(await readFile(join(outDir, url.slice(base.length))));
 }
@@ -196,6 +218,7 @@ const prefix = `atlas-${createHash("sha256").update(base).digest("hex").slice(0,
 const worker = `// Generated per release; never cache external analytics, APIs, or private data.
 const CACHE=${JSON.stringify(prefix + revision)}, PREFIX=${JSON.stringify(prefix)}, BASE=${JSON.stringify(base)};
 const CORE=${JSON.stringify(precache)};
+const APP_FILES=CORE.concat(${JSON.stringify(threeDimensionalAssets)});
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(PREFIX)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
@@ -204,7 +227,7 @@ self.addEventListener('fetch',event=>{
   if(url.pathname===BASE+'analytics.html'||url.pathname===BASE+'analytics-bootstrap.js')return;
   const navigation=request.mode==='navigate';
   const publicOptional=url.pathname.startsWith(BASE+'assets/street-leonida/')&&/\\.(?:webp|jpg|png|svg|json)$/.test(url.pathname);
-  const asset=CORE.includes(url.pathname)||publicOptional;
+  const asset=APP_FILES.includes(url.pathname)||publicOptional;
   if(request.headers.has('authorization')||(!navigation&&url.search))return;
   if(!navigation&&!asset)return;
   if(navigation){event.respondWith(fetch(request).catch(()=>caches.match(BASE+'index.html')));return;}
@@ -214,8 +237,10 @@ self.addEventListener('fetch',event=>{
     if(response.ok&&response.type==='basic'&&!/private|no-store/i.test(response.headers.get('cache-control')||'')){
       // Bound optional 3D asset caching; the app shell and public data remain pinned.
       try {
-        const keys=await cache.keys();const extras=keys.filter(key=>!CORE.includes(new URL(key.url).pathname));
-        if(extras.length>=200)await cache.delete(extras[0]);
+        if(publicOptional&&!APP_FILES.includes(url.pathname)){
+          const keys=await cache.keys();const extras=keys.filter(key=>!APP_FILES.includes(new URL(key.url).pathname));
+          if(extras.length>=200)await cache.delete(extras[0]);
+        }
         await cache.put(request,response.clone());
       } catch { /* Cache quota must not discard a successful network response. */ }
     }

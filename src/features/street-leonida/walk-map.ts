@@ -23,7 +23,7 @@ export { GTADB_MAP_MARKER_DOM_BUDGET } from './walk-map-marker-window';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 export const GTADB_MAP_ASSET_URL =
-  publicPath('assets/street-leonida/maps/gtadb-landmarks-7c3f8c2.json');
+  publicPath('assets/street-leonida/maps/gtadb-landmarks-5c1d69f.json');
 
 export interface GtadbMapSnapshotSource {
   readonly repository: string;
@@ -144,7 +144,7 @@ export interface WalkMapOptions {
   /** Optional world host whose data-player-x/z/yaw values should be observed. */
   readonly playerStateHost?: HTMLElement | null;
   readonly observePlayerDataset?: boolean;
-  /** Leave the 1.7 MB / 2,091-marker catalogue unloaded until the atlas is opened. */
+  /** Leave the full landmark catalogue unloaded until the atlas is opened. */
   readonly deferCatalogue?: boolean;
 }
 

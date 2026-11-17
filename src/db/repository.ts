@@ -205,12 +205,18 @@ export class AtlasDatabase extends Dexie {
     });
   }
 
-  async deleteMarker(id: string): Promise<void> {
+  async deleteMarker(
+    id: string,
+    expectedMarkerUpdatedAt: string,
+    expectedNoteUpdatedAt: string | null,
+  ): Promise<void> {
     const markerId = parseId(id, 'marker.id', true);
     await this.transaction(
       'rw',
       [this.markers, this.favorites, this.notes, this.collections],
       async () => {
+        checkRevision(await this.markers.get(markerId), expectedMarkerUpdatedAt);
+        checkRevision(await this.notes.get(markerId), expectedNoteUpdatedAt);
         await this.markers.delete(markerId);
         await this.favorites.delete(markerId);
         await this.notes.delete(markerId);

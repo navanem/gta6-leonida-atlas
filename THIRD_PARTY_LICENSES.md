@@ -12,7 +12,8 @@ Some data and cartographic source material used by GTA6 Leonida Atlas originates
 
 - Source: https://github.com/rolux/gtadb.org
 - Map: https://map.gtadb.org
-- Pinned source revision used by this release: `7c3f8c295d64254e6b6d269b77c6f84fc4339f9c`
+- Pinned landmark catalogue revision: `5c1d69ff864623d181da5457afaacd00b623e1a4`
+- Pinned Yanis v16 basemap revision: `7c3f8c295d64254e6b6d269b77c6f84fc4339f9c`
 - Data license: Creative Commons Attribution 4.0 International (`CC BY 4.0`)
 - License URL: https://creativecommons.org/licenses/by/4.0/
 - Attribution: `gtadb.org` and contributors

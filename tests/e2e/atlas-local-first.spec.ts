@@ -493,6 +493,27 @@ test('clean note editors synchronize across tabs without overwriting newer saved
   }
 });
 
+test('a dismissed direct link stays closed when local data refreshes', async ({ page, context }) => {
+  await page.goto('/?place=region%3Avice-city');
+  const heading = details(page).getByRole('heading', { name: 'Vice City', exact: true });
+  await expect(heading).toBeVisible();
+  await page.getByRole('button', { name: 'Close place details', exact: true }).click();
+  await expect(heading).not.toBeVisible();
+  const other = await context.newPage();
+  try {
+    await openAtlas(other);
+    await selectRegion(other);
+    await details(other).getByLabel('Notes', { exact: true }).fill('Saved from another tab');
+    await details(other).getByRole('button', { name: 'Save note', exact: true }).click();
+    await expect(details(other).getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
+    await selectRegion(page);
+    await expect(details(page).getByLabel('Notes', { exact: true })).toHaveValue('Saved from another tab');
+    await expect(heading).not.toBeVisible();
+  } finally {
+    await other.close();
+  }
+});
+
 test('notes saved offline remain available after reconnecting and reloading', async ({
   page,
   context,

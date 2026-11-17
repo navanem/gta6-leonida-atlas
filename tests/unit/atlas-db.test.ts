@@ -91,7 +91,11 @@ describe('local atlas repository', () => {
       updatedAt: time,
     });
     const before = await db.load();
-    await db.deleteMarker('custom:beach', before.markers[0]!.updatedAt, before.notes[0]!.updatedAt);
+    await db.deleteMarker(
+      'custom:beach',
+      before.markers.find((item) => item.id === 'custom:beach')!.updatedAt,
+      before.notes.find((item) => item.placeId === 'custom:beach')!.updatedAt,
+    );
     const saved = await db.load();
     expect(saved.markers).toEqual([]);
     expect(saved.favorites.map((favorite) => favorite.placeId)).toEqual(['L42']);

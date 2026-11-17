@@ -43,6 +43,13 @@ Out of scope:
 
 Security fixes to original project code are published under `AGPL-3.0-only`. Third-party GTADB-derived data remains under `CC BY 4.0`; see `THIRD_PARTY_LICENSES.md`.
 
+## Development dependencies
+
+The 0.8.2 lockfile uses a fixed minimatch release. Picomatch is used by build and
+test tooling. Track the [upstream advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+until an upstream fix is available for the supported tooling. The static site
+does not process user-supplied glob patterns.
+
 ## Personal data and optional services
 
 The public build includes no account backend, sessions, private sync endpoints, server credentials or production user data. Local IndexedDB data is never committed. Backups are private user files and must stay outside Git. Keep `.env.local`, deployment keys and exports ignored.

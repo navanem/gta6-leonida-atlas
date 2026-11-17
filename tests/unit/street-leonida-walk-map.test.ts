@@ -7,6 +7,7 @@ import {
   GTADB_PREFERRED_SOURCE,
   GTADB_PRESENTATION_NOTICE,
   GTADB_REVISION,
+  GTADB_SNAPSHOT_SHA256,
   GTADB_SOURCE,
 } from '@features/street-leonida/gtadb';
 import {
@@ -65,7 +66,7 @@ function snapshot(landmarks: readonly GtadbLandmark[]): GtadbMapSnapshot {
       license: GTADB_LICENSE,
       preferredSource: GTADB_PREFERRED_SOURCE,
       licenseUrl: GTADB_LICENSE_URL,
-      sha256: 'dd70b15592ee1ef6c3bbd0ccfea0fe8eef3cb033284f89670be419172e26ab65',
+      sha256: GTADB_SNAPSHOT_SHA256,
       presentation: GTADB_PRESENTATION_NOTICE,
       attribution: GTADB_ATTRIBUTION,
     },

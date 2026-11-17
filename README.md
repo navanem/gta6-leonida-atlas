@@ -60,6 +60,15 @@ Current release: **v0.8.0** · [Release notes](RELEASES.md) · [All GitHub relea
 
 </div>
 
+## Deployments
+
+Sites running Leonida Atlas:
+
+| Site | Atlas | Website |
+| --- | --- | --- |
+| GTA6 State | [gta6state.com/gta6-leonida-atlas](https://gta6state.com/gta6-leonida-atlas/) | [gta6state.com](https://gta6state.com/) |
+| Zonepedia | [atlas.zonepedia.com](https://atlas.zonepedia.com/) | [zonepedia.com](https://zonepedia.com/) |
+
 ## Run it locally
 
 You need Node.js 22.13+ within the 22.x line, 24.x, or 26+ and pnpm 10+.

@@ -446,7 +446,12 @@ test('blocked local storage keeps the public map usable and never reports a succ
   page,
 }) => {
   await page.addInitScript(() => {
-    Object.defineProperty(window, 'indexedDB', { configurable: true, value: undefined });
+    Object.defineProperty(IDBFactory.prototype, 'open', {
+      configurable: true,
+      value() {
+        throw new DOMException('Storage was blocked by the browser.', 'SecurityError');
+      },
+    });
   });
   await page.goto('/');
   await expect(
@@ -502,12 +507,10 @@ test('a dismissed direct link stays closed when local data refreshes', async ({ 
   const other = await context.newPage();
   try {
     await openAtlas(other);
-    await selectRegion(other);
-    await details(other).getByLabel('Notes', { exact: true }).fill('Saved from another tab');
-    await details(other).getByRole('button', { name: 'Save note', exact: true }).click();
-    await expect(details(other).getByRole('button', { name: 'Saved', exact: true })).toBeVisible();
-    await selectRegion(page);
-    await expect(details(page).getByLabel('Notes', { exact: true })).toHaveValue('Saved from another tab');
+    await createMarker(other, 'Second tab update');
+    await openSidebar(page);
+    await search(page).fill('Second tab update');
+    await expect(page.getByRole('button', { name: /^Second tab update Personal marker/ })).toBeVisible();
     await expect(heading).not.toBeVisible();
   } finally {
     await other.close();
@@ -545,7 +548,9 @@ test('3D explorer spawns at the selected Ambrosia position instead of Vice City'
     browserName !== 'chromium',
     'World-spawn verification uses the Chromium WebGL renderer.',
   );
-  test.setTimeout(90_000);
+  // The hosted Linux runner renders WebGL in software.
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1024, height: 576 });
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await openAtlas(page);

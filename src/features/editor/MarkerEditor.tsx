@@ -24,7 +24,10 @@ export default function MarkerEditor({
   const [x, setX] = useState(String(position?.x ?? marker?.position.x ?? 0));
   const [y, setY] = useState(String(position?.y ?? marker?.position.y ?? 0));
   const [error, setError] = useState('');
-  const [deletion, setDeletion] = useState<{ noteUpdatedAt: string | null }>();
+  const [noteUpdatedAt] = useState(
+    () => useUserStore.getState().notes.find((note) => note.placeId === selectedId)?.updatedAt ?? null,
+  );
+  const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   async function save() {
     const coords = { x: Number(x), y: Number(y) };
@@ -76,12 +79,12 @@ export default function MarkerEditor({
       );
   }
   async function remove() {
-    if (!marker || !deletion) return;
+    if (!marker || !deleting) return;
     setBusy(true);
     let conflict = false;
     const ok = await saveLocal(async () => {
       try {
-        await atlasRepository.deleteMarker(marker.id, marker.updatedAt, deletion.noteUpdatedAt);
+        await atlasRepository.deleteMarker(marker.id, marker.updatedAt, noteUpdatedAt);
       } catch (error) {
         conflict = error instanceof ConflictError;
         throw error;
@@ -92,7 +95,7 @@ export default function MarkerEditor({
       useMapStore.getState().select(null);
       onClose();
     } else {
-      setDeletion(undefined);
+      setDeleting(false);
       setError(
         conflict
           ? 'The marker or its note changed elsewhere. Close and reopen this marker before deleting.'
@@ -198,23 +201,17 @@ export default function MarkerEditor({
             Cancel
           </button>
         </div>
-        {marker && !deletion && (
+        {marker && !deleting && (
           <button
             type="button"
             className="text-button danger"
             disabled={busy}
-            onClick={() =>
-              setDeletion({
-                noteUpdatedAt:
-                  useUserStore.getState().notes.find((note) => note.placeId === marker.id)
-                    ?.updatedAt ?? null,
-              })
-            }
+            onClick={() => setDeleting(true)}
           >
             Delete marker
           </button>
         )}
-        {deletion && (
+        {deleting && (
           <div className="delete-confirm">
             <p>
               Delete this marker and its note? It will also be removed from favorites and

@@ -442,6 +442,27 @@ test('keyboard search and modal dismissal preserve focus and usable navigation',
   await expect(settings).toBeFocused();
 });
 
+test('keyboard pagination moves focus to the first newly shown search result', async ({ page }) => {
+  await openAtlas(page);
+  await openSidebar(page);
+  const results = sidebar(page).locator('.place-results').getByRole('button');
+  const showNext = sidebar(page).getByRole('button', { name: /^Show next \d+ places$/ });
+
+  await expect(results).toHaveCount(50);
+  await showNext.focus();
+  await page.keyboard.press('Enter');
+  await expect(results).toHaveCount(100);
+  await expect(results.nth(50)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(results.nth(51)).toBeFocused();
+
+  const category = page.getByLabel('Browse categories');
+  await category.focus();
+  await category.selectOption('region');
+  await expect(results).toHaveCount(6);
+  await expect(category).toBeFocused();
+});
+
 test('blocked local storage keeps the public map usable and never reports a successful save', async ({
   page,
 }) => {

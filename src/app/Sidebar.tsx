@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -108,7 +108,16 @@ function Results({ places }: { places: Place[] }) {
   const selectedId = useMapStore((s) => s.selectedId);
   const status = useDomainStore((s) => s.status);
   const [limit, setLimit] = useState(50);
+  const resultList = useRef<HTMLDivElement>(null);
+  const focusNextResult = useRef<number | null>(null);
   useEffect(() => setLimit(50), [filters]);
+  useLayoutEffect(() => {
+    const index = focusNextResult.current;
+    if (index === null) return;
+    focusNextResult.current = null;
+    const result = resultList.current?.children.item(index);
+    if (result instanceof HTMLButtonElement) result.focus();
+  }, [limit]);
   function select(place: Place) {
     useMapStore.getState().select(place);
     if (window.innerWidth < 1000) useUiStore.getState().setSidebar(false);
@@ -170,7 +179,7 @@ function Results({ places }: { places: Place[] }) {
           No places match these filters. Try another name, region or tag.
         </p>
       ) : (
-        <div className="place-results" aria-label="Search results">
+        <div ref={resultList} className="place-results" aria-label="Search results">
           {places.slice(0, limit).map((place) => (
             <button
               className={`place-result ${selectedId === place.id ? 'active' : ''}`}
@@ -198,7 +207,14 @@ function Results({ places }: { places: Place[] }) {
         </div>
       )}
       {places.length > limit && (
-        <button className="load-more" onClick={() => setLimit((n) => n + 50)}>
+        <button
+          className="load-more"
+          onClick={(event) => {
+            // Keyboard activation would otherwise leave focus after the new results.
+            if (event.detail === 0) focusNextResult.current = limit;
+            setLimit((n) => n + 50);
+          }}
+        >
           Show next {Math.min(50, places.length - limit)} places
         </button>
       )}

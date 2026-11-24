@@ -68,6 +68,7 @@ Sites running Leonida Atlas:
 | --- | --- | --- |
 | GTA6 State | [gta6state.com/gta6-leonida-atlas](https://gta6state.com/gta6-leonida-atlas/) | [gta6state.com](https://gta6state.com/) |
 | Zonepedia | [atlas.zonepedia.com](https://atlas.zonepedia.com/) | [zonepedia.com](https://zonepedia.com/) |
+| Vice Keys | [getvicekeys.com/atlas](https://getvicekeys.com/atlas) | [getvicekeys.com](https://getvicekeys.com/) |
 
 ## Run it locally
 
